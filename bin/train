@@ -4,8 +4,12 @@
 # Import utils directory
 import sys
 import os
-project_root = os.path.dirname(os.path.dirname(__file__))
-sys.path.append(project_root + "/utils")
+from os import path
+import pathlib
+main_dir = pathlib.Path(__file__).parent.parent.parent.absolute()
+sys.path.append(str(main_dir))
+
+
 ################################################################
 
 import argparse
@@ -23,14 +27,14 @@ from torch.autograd import Variable
 
 import torch
 
-from utils.models import Generator
-from utils.models import Discriminator
-from utils.utils import ReplayBuffer
-from utils.utils import LambdaLR
-from utils.utils import Logger
-from utils.utils import weights_init_normal
-from utils.datasets import ImageDataset
-from utils.datasets import shuffle_data
+from RGB2TIR.utils.models import Generator
+from RGB2TIR.utils.models import Discriminator
+from RGB2TIR.utils.utils import ReplayBuffer
+from RGB2TIR.utils.utils import LambdaLR
+from RGB2TIR.utils.utils import Logger
+from RGB2TIR.utils.utils import weights_init_normal
+from RGB2TIR.utils.datasets import ImageDataset
+from RGB2TIR.utils.datasets import shuffle_data
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', type=int, default=0, help='starting epoch')

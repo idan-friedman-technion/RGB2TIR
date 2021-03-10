@@ -5,6 +5,7 @@ import re
 import sys
 import matplotlib.pylab as plot
 import numpy as np
+import pathlib
 
 from torch.utils.data import Dataset
 from PIL import Image
@@ -55,9 +56,10 @@ class ImageDataset(Dataset):
 
 
 def shuffle_data():
+    rand_gen  = np.random.RandomState(1)
     RGB       = []
     TIR       = []
-    root      = os.path.realpath(os.path.dirname(os.path.dirname(__file__)))    # root of project dir
+    root      = pathlib.Path(__file__).parent.parent.absolute()    # root of RGB2TIR
     data_dir  = os.path.join(root, "data")
     for shot_folder in os.listdir(data_dir):
         fus = os.path.join(data_dir, shot_folder, "fus")
@@ -73,23 +75,23 @@ def shuffle_data():
     indices = np.arange(n_samples)
     rand_gen.shuffle(indices)
     ## Split the indices into 80% train (full) / 20% test
-    n_samples_train_full = int(n_samples * 0.8)
-    train_full_indices = indices[:n_samples_train_full]
-    test_indices = indices[n_samples_train_full:]
+    n_samples_train = int(n_samples * 0.8)
+    train_indices   = indices[:n_samples_train]
+    test_indices    = indices[n_samples_train:]
     ## %%%%%%%%%%%%%%% Your code here - End %%%%%%%%%%%%%%%%%
 
     ## Extract the sub datasets from the full dataset using the calculated indices
-    TIR_train = TIR.iloc[train_full_indices]
-    RGB_train = RGB.iloc[train_full_indices]
+    TIR_train = [TIR[x] for x in train_indices]
+    RGB_train = [RGB[x] for x in train_indices]
 
-    TIR_test = TIR.iloc[test_indices]
-    RGB_test = RGB.iloc[test_indices]
+    TIR_test = [TIR[x] for x in test_indices]
+    RGB_test = [RGB[x] for x in test_indices]
 
     data_file = open('Data_sorted.log', 'w')
-    data_file.write("RGB_train: " + ' '.join(RGB_train))
-    data_file.write("TIR_train: " + ' '.join(RGB_train))
-    data_file.write("RGB_test: "  + ' '.join(RGB_train))
-    data_file.write("TIR_test: "  + ' '.join(RGB_train))
+    data_file.write("RGB_train: {}\n".format(' '.join(RGB_train)))
+    data_file.write("TIR_train: {}\n".format(' '.join(RGB_train)))
+    data_file.write("RGB_test: {}\n".format(' '.join(RGB_train)))
+    data_file.write("TIR_test: {}\n".format(' '.join(RGB_train)))
 
     data_file.close()
     # files_RGB = sorted(glob.glob(os.path.join(root, "data") + '/*.*'))
