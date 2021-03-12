@@ -65,8 +65,8 @@ def shuffle_data():
     for shot_folder in os.listdir(data_dir):
         fus = os.path.join(data_dir, shot_folder, "fus")
         dc  = os.path.join(data_dir, shot_folder, "dc")
-        RGB.extend(glob.glob(fus + '/*'))
-        TIR.extend(glob.glob(dc + '/*'))
+        RGB.extend(glob.glob(dc + '/*'))
+        TIR.extend(glob.glob(fus + '/*'))
     TIR       = sorted(TIR)
     RGB       = sorted(RGB)
 
