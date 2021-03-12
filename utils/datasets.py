@@ -61,14 +61,15 @@ def shuffle_data():
     TIR       = []
     root      = pathlib.Path(__file__).parent.parent.absolute()    # root of RGB2TIR
     data_dir  = os.path.join(root, "data")
+    ## Get all TIR and RGB images
     for shot_folder in os.listdir(data_dir):
         fus = os.path.join(data_dir, shot_folder, "fus")
         dc  = os.path.join(data_dir, shot_folder, "dc")
-        RGB.append(glob.glob(dc + '/*.*'))
-        TIR.append(glob.glob(dc + '/*.*'))
-
+        RGB.extend(glob.glob(fus + '/*'))
+        TIR.extend(glob.glob(dc + '/*'))
     TIR       = sorted(TIR)
     RGB       = sorted(RGB)
+
     n_samples = len(TIR)
 
     ## Generating a shuffled vector of indices
@@ -78,7 +79,7 @@ def shuffle_data():
     n_samples_train = int(n_samples * 0.8)
     train_indices   = indices[:n_samples_train]
     test_indices    = indices[n_samples_train:]
-    ## %%%%%%%%%%%%%%% Your code here - End %%%%%%%%%%%%%%%%%
+
 
     ## Extract the sub datasets from the full dataset using the calculated indices
     TIR_train = [TIR[x] for x in train_indices]
@@ -89,9 +90,8 @@ def shuffle_data():
 
     data_file = open('Data_sorted.log', 'w')
     data_file.write("RGB_train: {}\n".format(' '.join(RGB_train)))
-    data_file.write("TIR_train: {}\n".format(' '.join(RGB_train)))
-    data_file.write("RGB_test: {}\n".format(' '.join(RGB_train)))
-    data_file.write("TIR_test: {}\n".format(' '.join(RGB_train)))
+    data_file.write("TIR_train: {}\n".format(' '.join(TIR_train)))
+    data_file.write("RGB_test: {}\n".format(' '.join(RGB_test)))
+    data_file.write("TIR_test: {}\n".format(' '.join(TIR_test)))
 
     data_file.close()
-    # files_RGB = sorted(glob.glob(os.path.join(root, "data") + '/*.*'))
