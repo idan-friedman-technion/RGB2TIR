@@ -9,48 +9,48 @@ import pathlib
 
 from torch.utils.data import Dataset
 from PIL import Image
-import torchvision.transforms as transforms
+#import torchvision.transforms as transforms
 
-class ImageDataset(Dataset):
-    def __init__(self, root, transforms_=None, unaligned=False, mode='train'):
-        self.transform = transforms.Compose(transforms_)
-        self.unaligned = unaligned
-        self.files_TIR = []
-        self.files_RGB = []
-
-        try:
-            file = open('Data_sorted.log', 'r')
-            lines = file.readlines()
-        except:
-            print("Couldn't open file {}".format(root + 'utils/Data_sorted.log'))
-            print("Consider running with flag '--sd'")
-            sys.exit(255)
-
-        for line in lines:
-            if line.startswith('RGB_' + mode):
-                match     = re.match('RGB_' + mode + ': (.*)', line)
-                RGB_group = match.group(1)
-                self.files_RGB = RGB_group.split(' ')
-            elif line.startswith('TIR_' + mode):
-                match     = re.match('TIR_' + mode + ': (.*)', line)
-                TIR_group = match.group(1)
-                self.files_TIR = RGB_group.split(' ')
-
-
-        file.close()
-
-        # self.files_TIR = sorted(glob.glob(os.path.join(root, '%s/TIR' % mode) + '/*.*'))
-        # self.files_RGB = sorted(glob.glob(os.path.join(root, '%s/RGB' % mode) + '/*.*'))
-
-    def __getitem__(self, index):
-        item_TIR = plot.array(Image.open(self.files_TIR[index % len(self.files_TIR)]).convert("RGB"))
-        item_RGB = plot.array(Image.open(self.files_RGB[index % len(self.files_RGB)]).convert("RGB"))
-        item_RGB = item_RGB[113:1393, 33:993, :]
-
-        return {'TIR': item_TIR, 'RGB': item_RGB}
-
-    def __len__(self):
-        return max(len(self.files_TIR), len(self.files_RGB))
+# class ImageDataset(Dataset):
+#     def __init__(self, root, transforms_=None, unaligned=False, mode='train'):
+#         self.transform = transforms.Compose(transforms_)
+#         self.unaligned = unaligned
+#         self.files_TIR = []
+#         self.files_RGB = []
+#
+#         try:
+#             file = open('Data_sorted.log', 'r')
+#             lines = file.readlines()
+#         except:
+#             print("Couldn't open file {}".format(root + 'utils/Data_sorted.log'))
+#             print("Consider running with flag '--sd'")
+#             sys.exit(255)
+#
+#         for line in lines:
+#             if line.startswith('RGB_' + mode):
+#                 match     = re.match('RGB_' + mode + ': (.*)', line)
+#                 RGB_group = match.group(1)
+#                 self.files_RGB = RGB_group.split(' ')
+#             elif line.startswith('TIR_' + mode):
+#                 match     = re.match('TIR_' + mode + ': (.*)', line)
+#                 TIR_group = match.group(1)
+#                 self.files_TIR = RGB_group.split(' ')
+#
+#
+#         file.close()
+#
+#         # self.files_TIR = sorted(glob.glob(os.path.join(root, '%s/TIR' % mode) + '/*.*'))
+#         # self.files_RGB = sorted(glob.glob(os.path.join(root, '%s/RGB' % mode) + '/*.*'))
+#
+#     def __getitem__(self, index):
+#         item_TIR = plot.array(Image.open(self.files_TIR[index % len(self.files_TIR)]).convert("RGB"))
+#         item_RGB = plot.array(Image.open(self.files_RGB[index % len(self.files_RGB)]).convert("RGB"))
+#         item_RGB = item_RGB[113:1393, 33:993, :]
+#
+#         return {'TIR': item_TIR, 'RGB': item_RGB}
+#
+#     def __len__(self):
+#         return max(len(self.files_TIR), len(self.files_RGB))
 
 
 
@@ -88,10 +88,50 @@ def shuffle_data():
     TIR_test = [TIR[x] for x in test_indices]
     RGB_test = [RGB[x] for x in test_indices]
 
-    data_file = open('Data_sorted.log', 'w')
+    file_path = os.path.join(root,'bin/Data_sorted.txt')
+    data_file = open(file_path, 'w')
     data_file.write("RGB_train: {}\n".format(' '.join(RGB_train)))
     data_file.write("TIR_train: {}\n".format(' '.join(TIR_train)))
     data_file.write("RGB_test: {}\n".format(' '.join(RGB_test)))
     data_file.write("TIR_test: {}\n".format(' '.join(TIR_test)))
 
     data_file.close()
+
+
+def get_list_of_files(mode='train'):
+    files_TIR  = []
+    files_RGB  = []
+    final_list = []
+    root=pathlib.Path(__file__).parent.parent.absolute()
+    file_path = os.path.join(root,'bin/Data_sorted.txt')
+
+    try:
+        file = open(file_path, 'r')
+        lines = file.readlines()
+
+    except:
+        print("Couldn't open file {}".format(root + 'bin/Data_sorted.txt'))
+        print("Consider running with flag '--sd'")
+        sys.exit(255)
+
+    for line in lines:
+        if line.startswith('RGB_' + mode):
+            match     = re.match('RGB_' + mode + ': (.*)', line) #
+            RGB_group = match.group(1)
+            files_RGB = RGB_group.split(' ')
+        elif line.startswith('TIR_' + mode):
+            match     = re.match('TIR_' + mode + ': (.*)', line)
+            TIR_group = match.group(1)
+            files_TIR = TIR_group.split(' ')
+
+    file.close()
+
+    for i in range(len(files_TIR)):
+        item_TIR = plot.array(Image.open(files_TIR[i]).convert("RGB"))
+        item_RGB = plot.array(Image.open(files_RGB[i]).convert("RGB"))
+        item_RGB = item_RGB[113:1393, 33:993, :]
+        db = {'TIR': item_TIR, 'RGB': item_RGB}
+        final_list.append(db)
+
+
+    return final_list
