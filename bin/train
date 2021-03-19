@@ -46,7 +46,7 @@ parser.add_argument('--n_epochs', type=int, default=100, help='number of epochs 
 parser.add_argument('--batchSize', type=int, default=1, help='size of the batches')
 parser.add_argument('--dataroot', type=str, default='datasets/horse2zebra/', help='root directory of the dataset')
 parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate')
-parser.add_argument('--decay_epoch', type=int, default=100, help='epoch to start linearly decaying the learning rate to 0')
+parser.add_argument('--decay_epoch', type=int, default=50, help='epoch to start linearly decaying the learning rate to 0')
 parser.add_argument('--size', type=int, default=256, help='size of the data crop (squared assumed)')
 parser.add_argument('--TIR_w', type=int, default=640, help='size of the data TIR width (squared assumed)')
 parser.add_argument('--TIR_h', type=int, default=480, help='size of the data crop (squared assumed)')
@@ -227,8 +227,8 @@ for epoch in range(opt.epoch, opt.n_epochs):
     lr_scheduler_D_B.step()
 
     # Save models checkpoints
-    torch.save(netG_A2B.state_dict(), 'output/p_netG_A2B.pth')
-    torch.save(netG_B2A.state_dict(), 'output/p_netG_B2A.pth')
-    torch.save(netD_A.state_dict(), 'output/p_netD_A.pth')
-    torch.save(netD_B.state_dict(), 'output/p_netD_B.pth')
+    torch.save(netG_A2B.state_dict(), os.path.join(main_dir,'RGB2TIR/output/p_netG_A2B.pth'))
+    torch.save(netG_B2A.state_dict(), os.path.join(main_dir,'RGB2TIR/output/p_netG_B2A.pth'))
+    torch.save(netD_A.state_dict(), os.path.join(main_dir,'RGB2TIR/output/p_netD_A.pth'))
+    torch.save(netD_B.state_dict(), os.path.join(main_dir,'RGB2TIR/output/p_netD_B.pth'))
 ###################################
