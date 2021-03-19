@@ -21,24 +21,28 @@ from PIL import Image
 # import torchvision.__version__ as vr2
 # print(vr2)
 
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
+#import torchvision.transforms as transforms
+# from torch.utils.data import DataLoader
 from torch.autograd import Variable
 
 import torch
+
 
 from RGB2TIR.utils.models import Generator
 from RGB2TIR.utils.models import Discriminator
 from RGB2TIR.utils.utils import ReplayBuffer
 from RGB2TIR.utils.utils import LambdaLR
-from RGB2TIR.utils.utils import Logger
+#from RGB2TIR.utils.utils import Logger
 from RGB2TIR.utils.utils import weights_init_normal
-from RGB2TIR.utils.datasets import ImageDataset
+#from RGB2TIR.utils.datasets import ImageDataset
 from RGB2TIR.utils.datasets import shuffle_data
+from RGB2TIR.utils.datasets import get_list_of_files
+
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
-parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs of training')
+parser.add_argument('--n_epochs', type=int, default=100, help='number of epochs of training')
 parser.add_argument('--batchSize', type=int, default=1, help='size of the batches')
 parser.add_argument('--dataroot', type=str, default='datasets/horse2zebra/', help='root directory of the dataset')
 parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate')
@@ -107,26 +111,28 @@ fake_A_buffer = ReplayBuffer()
 fake_B_buffer = ReplayBuffer()
 
 # Dataset loader
-transforms_ = [ transforms.Resize(int(opt.size*1.12), Image.BICUBIC), 
-                transforms.RandomCrop(opt.size), 
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5)) ]
-dataloader = DataLoader(ImageDataset(opt.dataroot, transforms_=transforms_, unaligned=True), 
-                        batch_size=opt.batchSize, shuffle=True, num_workers=0)
+# transforms_ = [ transforms.Resize(int(opt.size*1.12), Image.BICUBIC),
+#                 transforms.RandomCrop(opt.size),
+#                 transforms.RandomHorizontalFlip(),
+#                 transforms.ToTensor(),
+#                 transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5)) ]
+# dataloader = DataLoader(ImageDataset(opt.dataroot, transforms_=transforms_, unaligned=True),
+#                         batch_size=opt.batchSize, shuffle=True, num_workers=0)
 
 # Loss plot
 #logger = Logger(opt.n_epochs, len(dataloader))
 ###################################
 
 ###### Training ######
+final_list = get_list_of_files()
+
 for epoch in range(opt.epoch, opt.n_epochs):
     print ("starting epoch: {}".format(epoch))
-    for i, batch in enumerate(dataloader):
-        print("i is: {}".format(i))
+    for i, batch in enumerate(final_list):
+        #print("i is: {}".format(i))
         # Set model input
-        real_A = Variable(input_A.copy_(batch['TIR']))
-        real_B = Variable(input_B.copy_(batch['RGB']))
+        real_A = Variable(input_A.copy_(torch.from_numpy(batch['TIR'])))
+        real_B = Variable(input_B.copy_(torch.from_numpy(batch['RGB'])))
 
         real_A = real_A.permute(0, 3, 1, 2)
 
