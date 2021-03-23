@@ -232,3 +232,6 @@ for epoch in range(opt.epoch, opt.n_epochs):
     torch.save(netD_A.state_dict(), os.path.join(main_dir,'RGB2TIR/output/p_netD_A.pth'))
     torch.save(netD_B.state_dict(), os.path.join(main_dir,'RGB2TIR/output/p_netD_B.pth'))
 ###################################
+
+
+
