@@ -60,7 +60,7 @@ def shuffle_data():
     RGB       = []
     TIR       = []
     root      = pathlib.Path(__file__).parent.parent.absolute()    # root of RGB2TIR
-    data_dir  = os.path.join(root, "data")
+    data_dir  = os.path.join(root, "data/video")
     ## Get all TIR and RGB images
     for shot_folder in os.listdir(data_dir):
         fus = os.path.join(data_dir, shot_folder, "fus")
@@ -110,7 +110,7 @@ def get_list_of_files(mode='train'):
         lines = file.readlines()
 
     except:
-        print("Couldn't open file {}".format(root + 'bin/Data_sorted.txt'))
+        print("Couldn't open file {}".format(root + '/bin/Data_sorted.txt'))
         print("Consider running with flag '--sd'")
         sys.exit(255)
 
@@ -127,10 +127,12 @@ def get_list_of_files(mode='train'):
     file.close()
 
     for i in range(len(files_TIR)):
-        item_TIR = plot.array(Image.open(files_TIR[i]).convert("RGB"))
-        item_RGB = plot.array(Image.open(files_RGB[i]).convert("RGB"))
-        item_RGB = item_RGB[113:1393, 33:993, :]
-        db = {'TIR': item_TIR, 'RGB': item_RGB}
+        if (i % 4 != 1):
+            continue
+        # item_TIR = plot.array(Image.open(files_TIR[i]).convert("RGB"))
+        # item_RGB = plot.array(Image.open(files_RGB[i]).convert("RGB"))
+        # item_RGB = item_RGB[113:1393, 33:993, :]
+        db = {'TIR': files_TIR[i], 'RGB': files_RGB[i]}
         final_list.append(db)
 
 
