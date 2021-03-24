@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python3.6
 
 #################################################################
 # Import utils directory
@@ -26,6 +26,8 @@ from PIL import Image
 from torch.autograd import Variable
 
 import torch
+import tqdm
+import matplotlib.pylab as plot
 
 
 from RGB2TIR.utils.models import Generator
@@ -42,11 +44,11 @@ from RGB2TIR.utils.datasets import get_list_of_files
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
-parser.add_argument('--n_epochs', type=int, default=100, help='number of epochs of training')
+parser.add_argument('--n_epochs', type=int, default=20, help='number of epochs of training')
 parser.add_argument('--batchSize', type=int, default=1, help='size of the batches')
 parser.add_argument('--dataroot', type=str, default='datasets/horse2zebra/', help='root directory of the dataset')
 parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate')
-parser.add_argument('--decay_epoch', type=int, default=50, help='epoch to start linearly decaying the learning rate to 0')
+parser.add_argument('--decay_epoch', type=int, default=10, help='epoch to start linearly decaying the learning rate to 0')
 parser.add_argument('--size', type=int, default=256, help='size of the data crop (squared assumed)')
 parser.add_argument('--TIR_w', type=int, default=640, help='size of the data TIR width (squared assumed)')
 parser.add_argument('--TIR_h', type=int, default=480, help='size of the data crop (squared assumed)')
@@ -57,6 +59,7 @@ parser.add_argument('--output_nc', type=int, default=3, help='number of channels
 parser.add_argument('--cuda', action='store_true', help='use GPU computation')
 parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
 parser.add_argument('--sd', action='store_true', help='shuffle data for test and train')
+parser.add_argument('--nr', action='store_true', help='don\'t run the network')
 opt = parser.parse_args()
 print(opt)
 
@@ -126,13 +129,21 @@ fake_B_buffer = ReplayBuffer()
 ###### Training ######
 final_list = get_list_of_files()
 
-for epoch in range(opt.epoch, opt.n_epochs):
-    print ("starting epoch: {}".format(epoch))
-    for i, batch in enumerate(final_list):
+if opt.nr:
+    print(f"'no run' flag was inserted. {len(final_list)} files were submitted")
+    exit(1)
+
+print(f"Starting train. {opt.n_epochs} epoches will be ran, {len(final_list)} files for each epoch")
+for epoch in tqdm.tqdm(range(opt.epoch, opt.n_epochs), total=opt.n_epochs-opt.epoch):
+    # print ("starting epoch: {}".format(epoch))
+    for i, batch in enumerate(tqdm.tqdm(final_list, total=len(final_list), leave=False)):
         #print("i is: {}".format(i))
         # Set model input
-        real_A = Variable(input_A.copy_(torch.from_numpy(batch['TIR'])))
-        real_B = Variable(input_B.copy_(torch.from_numpy(batch['RGB'])))
+        item_TIR = plot.array(Image.open(batch['TIR']).convert("RGB"))
+        item_RGB = plot.array(Image.open(batch['RGB']).convert("RGB"))
+        item_RGB = item_RGB[113:1393, 33:993, :]
+        real_A = Variable(input_A.copy_(torch.from_numpy(item_TIR)))
+        real_B = Variable(input_B.copy_(torch.from_numpy(item_RGB)))
 
         real_A = real_A.permute(0, 3, 1, 2)
 
