@@ -9,48 +9,48 @@ import pathlib
 
 from torch.utils.data import Dataset
 from PIL import Image
-#import torchvision.transforms as transforms
+import torchvision.transforms as transforms
 
-# class ImageDataset(Dataset):
-#     def __init__(self, root, transforms_=None, unaligned=False, mode='train'):
-#         self.transform = transforms.Compose(transforms_)
-#         self.unaligned = unaligned
-#         self.files_TIR = []
-#         self.files_RGB = []
-#
-#         try:
-#             file = open('Data_sorted.log', 'r')
-#             lines = file.readlines()
-#         except:
-#             print("Couldn't open file {}".format(root + 'utils/Data_sorted.log'))
-#             print("Consider running with flag '--sd'")
-#             sys.exit(255)
-#
-#         for line in lines:
-#             if line.startswith('RGB_' + mode):
-#                 match     = re.match('RGB_' + mode + ': (.*)', line)
-#                 RGB_group = match.group(1)
-#                 self.files_RGB = RGB_group.split(' ')
-#             elif line.startswith('TIR_' + mode):
-#                 match     = re.match('TIR_' + mode + ': (.*)', line)
-#                 TIR_group = match.group(1)
-#                 self.files_TIR = RGB_group.split(' ')
-#
-#
-#         file.close()
-#
-#         # self.files_TIR = sorted(glob.glob(os.path.join(root, '%s/TIR' % mode) + '/*.*'))
-#         # self.files_RGB = sorted(glob.glob(os.path.join(root, '%s/RGB' % mode) + '/*.*'))
-#
-#     def __getitem__(self, index):
-#         item_TIR = plot.array(Image.open(self.files_TIR[index % len(self.files_TIR)]).convert("RGB"))
-#         item_RGB = plot.array(Image.open(self.files_RGB[index % len(self.files_RGB)]).convert("RGB"))
-#         item_RGB = item_RGB[113:1393, 33:993, :]
-#
-#         return {'TIR': item_TIR, 'RGB': item_RGB}
-#
-#     def __len__(self):
-#         return max(len(self.files_TIR), len(self.files_RGB))
+class ImageDataset(Dataset):
+    def __init__(self, root, transforms_=None, unaligned=False, mode='train'):
+        self.transform = transforms.Compose(transforms_)
+        self.unaligned = unaligned
+        self.files_TIR = []
+        self.files_RGB = []
+        root = pathlib.Path(__file__).parent.parent.absolute()  # root of RGB2TIR
+
+        try:
+            file = open('Data_sorted.txt', 'r')
+            lines = file.readlines()
+        except:
+            print("Couldn't open file {}".format(os.path.join(root, 'bin/Data_sorted.txt')))
+            print("Consider running with flag '--sd'")
+            sys.exit(255)
+
+        for line in lines:
+            if line.startswith('RGB_' + mode):
+                match     = re.match('RGB_' + mode + ': (.*)', line)
+                RGB_group = match.group(1)
+                self.files_RGB = RGB_group.split(' ')
+            elif line.startswith('TIR_' + mode):
+                match     = re.match('TIR_' + mode + ': (.*)', line)
+                TIR_group = match.group(1)
+                self.files_TIR = TIR_group.split(' ')
+
+
+        file.close()
+
+        # self.files_TIR = sorted(glob.glob(os.path.join(root, '%s/TIR' % mode) + '/*.*'))
+        # self.files_RGB = sorted(glob.glob(os.path.join(root, '%s/RGB' % mode) + '/*.*'))
+
+    def __getitem__(self, index):
+        item_TIR = self.transform(Image.open(self.files_TIR[index % len(self.files_TIR)]).convert('RGB'))
+        item_RGB = self.transform(Image.open(self.files_RGB[index % len(self.files_RGB)]).convert('RGB'))
+
+        return {'TIR': item_TIR, 'RGB': item_RGB}
+
+    def __len__(self):
+        return max(len(self.files_TIR), len(self.files_RGB))
 
 
 
@@ -128,10 +128,8 @@ def get_list_of_files(mode='train'):
 
     for i in range(len(files_TIR)):
         if (i % 4 != 1):
-            continue
-        # item_TIR = plot.array(Image.open(files_TIR[i]).convert("RGB"))
-        # item_RGB = plot.array(Image.open(files_RGB[i]).convert("RGB"))
-        # item_RGB = item_RGB[113:1393, 33:993, :]
+            # continue
+            pass
         db = {'TIR': files_TIR[i], 'RGB': files_RGB[i]}
         final_list.append(db)
 

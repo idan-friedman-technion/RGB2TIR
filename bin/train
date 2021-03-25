@@ -21,8 +21,8 @@ from PIL import Image
 # import torchvision.__version__ as vr2
 # print(vr2)
 
-#import torchvision.transforms as transforms
-# from torch.utils.data import DataLoader
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
 from torch.autograd import Variable
 
 import torch
@@ -34,32 +34,32 @@ from RGB2TIR.utils.models import Generator
 from RGB2TIR.utils.models import Discriminator
 from RGB2TIR.utils.utils import ReplayBuffer
 from RGB2TIR.utils.utils import LambdaLR
-#from RGB2TIR.utils.utils import Logger
+# from RGB2TIR.utils.utils import Logger
 from RGB2TIR.utils.utils import weights_init_normal
-#from RGB2TIR.utils.datasets import ImageDataset
+from RGB2TIR.utils.datasets import ImageDataset
 from RGB2TIR.utils.datasets import shuffle_data
 from RGB2TIR.utils.datasets import get_list_of_files
 
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
-parser.add_argument('--n_epochs', type=int, default=20, help='number of epochs of training')
-parser.add_argument('--batchSize', type=int, default=1, help='size of the batches')
-parser.add_argument('--dataroot', type=str, default='datasets/horse2zebra/', help='root directory of the dataset')
-parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate')
-parser.add_argument('--decay_epoch', type=int, default=10, help='epoch to start linearly decaying the learning rate to 0')
-parser.add_argument('--size', type=int, default=256, help='size of the data crop (squared assumed)')
-parser.add_argument('--TIR_w', type=int, default=640, help='size of the data TIR width (squared assumed)')
-parser.add_argument('--TIR_h', type=int, default=480, help='size of the data crop (squared assumed)')
-parser.add_argument('--RGB_w', type=int, default=1280, help='size of the data TIR width (squared assumed)')
-parser.add_argument('--RGB_h', type=int, default=960, help='size of the data crop (squared assumed)')
-parser.add_argument('--input_nc', type=int, default=3, help='number of channels of input data')
-parser.add_argument('--output_nc', type=int, default=3, help='number of channels of output data')
-parser.add_argument('--cuda', action='store_true', help='use GPU computation')
-parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
-parser.add_argument('--sd', action='store_true', help='shuffle data for test and train')
-parser.add_argument('--nr', action='store_true', help='don\'t run the network')
+parser.add_argument('--epoch',       type=int,   default=0,   help='starting epoch')
+parser.add_argument('--n_epochs',    type=int,   default=200, help='number of epochs of training')
+parser.add_argument('--batchSize',   type=int,   default=1,   help='size of the batches')
+parser.add_argument('--dataroot',    type=str,   default='datasets/horse2zebra/', help='root directory of the dataset')
+parser.add_argument('--lr',          type=float, default=0.0002, help='initial learning rate')
+parser.add_argument('--decay_epoch', type=int,   default=100, help='epoch to start linearly decaying the learning rate to 0')
+parser.add_argument('--size',        type=int,   default=256, help='size of the data crop (squared assumed)')
+parser.add_argument('--TIR_w',       type=int,   default=256, help='size of the data TIR width (squared assumed)')
+parser.add_argument('--TIR_h',       type=int,   default=256, help='size of the data crop (squared assumed)')
+parser.add_argument('--RGB_w',       type=int,   default=256, help='size of the data TIR width (squared assumed)')
+parser.add_argument('--RGB_h',       type=int,   default=256, help='size of the data crop (squared assumed)')
+parser.add_argument('--input_nc',    type=int,   default=3,   help='number of channels of input data')
+parser.add_argument('--output_nc',   type=int,   default=3,   help='number of channels of output data')
+parser.add_argument('--cuda',        action='store_true',     help='use GPU computation')
+parser.add_argument('--n_cpu',       type=int,   default=8,   help='number of cpu threads to use during batch generation')
+parser.add_argument('--sd',          action='store_true',     help='shuffle data for test and train')
+parser.add_argument('--nr',          action='store_true',     help='don\'t run the network')
 opt = parser.parse_args()
 print(opt)
 
@@ -72,21 +72,21 @@ if opt.sd:
     
 ###### Definition of variables ######
 # Networks
-netG_A2B = Generator(opt.input_nc, opt.output_nc)
-netG_B2A = Generator(opt.output_nc, opt.input_nc)
-netD_A = Discriminator(opt.input_nc)
-netD_B = Discriminator(opt.output_nc)
+netG_TIR_2_RGB = Generator(opt.input_nc, opt.output_nc)
+netG_RGB_2_TIR = Generator(opt.output_nc, opt.input_nc)
+netD_TIR = Discriminator(opt.input_nc)
+netD_RGB = Discriminator(opt.output_nc)
 
 if opt.cuda:
-    netG_A2B.cuda()
-    netG_B2A.cuda()
-    netD_A.cuda()
-    netD_B.cuda()
+    netG_TIR_2_RGB.cuda()
+    netG_RGB_2_TIR.cuda()
+    netD_TIR.cuda()
+    netD_RGB.cuda()
 
-netG_A2B.apply(weights_init_normal)
-netG_B2A.apply(weights_init_normal)
-netD_A.apply(weights_init_normal)
-netD_B.apply(weights_init_normal)
+netG_TIR_2_RGB.apply(weights_init_normal)
+netG_RGB_2_TIR.apply(weights_init_normal)
+netD_TIR.apply(weights_init_normal)
+netD_RGB.apply(weights_init_normal)
 
 # Lossess
 criterion_GAN = torch.nn.MSELoss()
@@ -94,33 +94,32 @@ criterion_cycle = torch.nn.L1Loss()
 criterion_identity = torch.nn.L1Loss()
 
 # Optimizers & LR schedulers
-optimizer_G = torch.optim.Adam(itertools.chain(netG_A2B.parameters(), netG_B2A.parameters()),
+optimizer_G = torch.optim.Adam(itertools.chain(netG_TIR_2_RGB.parameters(), netG_RGB_2_TIR.parameters()),
                                 lr=opt.lr, betas=(0.5, 0.999))
-optimizer_D_A = torch.optim.Adam(netD_A.parameters(), lr=opt.lr, betas=(0.5, 0.999))
-optimizer_D_B = torch.optim.Adam(netD_B.parameters(), lr=opt.lr, betas=(0.5, 0.999))
+optimizer_D_TIR_TIR = torch.optim.Adam(netD_TIR.parameters(), lr=opt.lr, betas=(0.5, 0.999))
+optimizer_D_RGB = torch.optim.Adam(netD_RGB.parameters(), lr=opt.lr, betas=(0.5, 0.999))
 
 lr_scheduler_G = torch.optim.lr_scheduler.LambdaLR(optimizer_G, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
-lr_scheduler_D_A = torch.optim.lr_scheduler.LambdaLR(optimizer_D_A, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
-lr_scheduler_D_B = torch.optim.lr_scheduler.LambdaLR(optimizer_D_B, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
+lr_scheduler_D_TIR = torch.optim.lr_scheduler.LambdaLR(optimizer_D_TIR_TIR, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
+lr_scheduler_D_RGB = torch.optim.lr_scheduler.LambdaLR(optimizer_D_RGB, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step)
+
 
 # Inputs & targets memory allocation
 Tensor = torch.cuda.FloatTensor if opt.cuda else torch.Tensor
-input_A = Tensor(opt.batchSize, opt.TIR_w, opt.TIR_h, opt.input_nc)
-input_B = Tensor(opt.batchSize, opt.RGB_w, opt.RGB_h, opt.input_nc)
+input_TIR = Tensor(opt.batchSize, opt.input_nc, opt.TIR_w, opt.TIR_h)
+input_RGB = Tensor(opt.batchSize, opt.input_nc, opt.RGB_w, opt.RGB_h)
 target_real = Variable(Tensor(opt.batchSize).fill_(1.0), requires_grad=False)
 target_fake = Variable(Tensor(opt.batchSize).fill_(0.0), requires_grad=False)
 
-fake_A_buffer = ReplayBuffer()
-fake_B_buffer = ReplayBuffer()
+fake_TIR_buffer = ReplayBuffer()
+fake_RGB_buffer = ReplayBuffer()
 
 # Dataset loader
-# transforms_ = [ transforms.Resize(int(opt.size*1.12), Image.BICUBIC),
-#                 transforms.RandomCrop(opt.size),
-#                 transforms.RandomHorizontalFlip(),
-#                 transforms.ToTensor(),
-#                 transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5)) ]
-# dataloader = DataLoader(ImageDataset(opt.dataroot, transforms_=transforms_, unaligned=True),
-#                         batch_size=opt.batchSize, shuffle=True, num_workers=0)
+transforms_ = [transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5)) ]
+dataloader = DataLoader(ImageDataset(opt.dataroot, transforms_=transforms_, unaligned=True),
+                        batch_size=opt.batchSize, shuffle=True, num_workers=0)
 
 # Loss plot
 #logger = Logger(opt.n_epochs, len(dataloader))
@@ -133,115 +132,106 @@ if opt.nr:
     print(f"'no run' flag was inserted. {len(final_list)} files were submitted")
     exit(1)
 
-print(f"Starting train. {opt.n_epochs} epoches will be ran, {len(final_list)} files for each epoch")
-for epoch in tqdm.tqdm(range(opt.epoch, opt.n_epochs), total=opt.n_epochs-opt.epoch):
-    # print ("starting epoch: {}".format(epoch))
-    for i, batch in enumerate(tqdm.tqdm(final_list, total=len(final_list), leave=False)):
-        #print("i is: {}".format(i))
-        # Set model input
-        item_TIR = plot.array(Image.open(batch['TIR']).convert("RGB"))
-        item_RGB = plot.array(Image.open(batch['RGB']).convert("RGB"))
-        item_RGB = item_RGB[113:1393, 33:993, :]
-        real_A = Variable(input_A.copy_(torch.from_numpy(item_TIR)))
-        real_B = Variable(input_B.copy_(torch.from_numpy(item_RGB)))
+# print(f"Starting train. {opt.n_epochs} epoches will be ran, {len(final_list)} files for each epoch")
+print(f"Starting train. {opt.n_epochs} epoches will be ran, {len(dataloader)} files for each epoch")
+for ep in tqdm.tqdm(range(100), position=0, leave=True):
+    print(f"epoch number {ep}/{opt.n_epochs}", end = "\r\r")
+    print()
+    for i, batch in enumerate(tqdm.tqdm(dataloader, total=len(dataloader), leave=False, position=0)):
+        item_RGB = batch['RGB'][:,:,113:1393, 33:993]
 
-        real_A = real_A.permute(0, 3, 1, 2)
+        real_TIR = Variable(input_TIR.copy_(batch['TIR'][0, :, 0:256, 0:256]))
+        real_RGB = Variable(input_RGB.copy_(item_RGB[0, :, 0:256, 0:256]))
 
-        real_B = real_B.permute(0, 3, 1, 2)
 
         ###### Generators A2B and B2A ######
         optimizer_G.zero_grad()
 
         # Identity loss
         # G_A2B(B) should equal B if real B is fed
-        same_B = netG_A2B(real_B)
-        loss_identity_B = criterion_identity(same_B, real_B)*5.0
-        # G_B2A(A) should equal A if real A is fed
-        same_A = netG_B2A(real_A)
-        loss_identity_A = criterion_identity(same_A, real_A)*5.0
+        # same_B = netG_TIR_2_RGB(real_RGB)
+        # loss_identity_B = criterion_identity(same_B, real_RGB)*5.0
+        # # G_B2A(A) should equal A if real A is fed
+        # same_A = netG_RGB_2_TIR(real_TIR)
+        # loss_identity_A = criterion_identity(same_A, real_TIR)*5.0
 
         # GAN loss
-        fake_B = netG_A2B(real_A)
-        pred_fake = netD_B(fake_B)
-        # print(pred_fake)
-        # print(pred_fake.shape)
-        # print(target_real)
-        # print(target_real.shape)
+        fake_RGB = netG_TIR_2_RGB(real_TIR)
+        pred_fake = netD_RGB(fake_RGB)
         loss_GAN_A2B = criterion_GAN(pred_fake, target_real)
 
-        fake_A = netG_B2A(real_B)
-        pred_fake = netD_A(fake_A)
-        # print(pred_fake)
-        # print(target_real)
+        fake_TIR = netG_RGB_2_TIR(real_RGB)
+        pred_fake = netD_TIR(fake_TIR)
         loss_GAN_B2A = criterion_GAN(pred_fake, target_real)
 
         # Cycle loss
-        recovered_A = netG_B2A(fake_B)
-        loss_cycle_ABA = criterion_cycle(recovered_A, real_A)*10.0
+        recovered_A = netG_RGB_2_TIR(fake_RGB)
+        loss_cycle_ABA = criterion_cycle(recovered_A, real_TIR)*10.0
 
-        recovered_B = netG_A2B(fake_A)
-        loss_cycle_BAB = criterion_cycle(recovered_B, real_B)*10.0
+        recovered_B = netG_TIR_2_RGB(fake_TIR)
+        loss_cycle_BAB = criterion_cycle(recovered_B, real_RGB)*10.0
 
         # Total loss
-        loss_G = loss_identity_A + loss_identity_B + loss_GAN_A2B + loss_GAN_B2A + loss_cycle_ABA + loss_cycle_BAB
+        # loss_G = loss_identity_A + loss_identity_B + loss_GAN_A2B + loss_GAN_B2A + loss_cycle_ABA + loss_cycle_BAB
+        loss_G = loss_GAN_A2B + loss_GAN_B2A + loss_cycle_ABA + loss_cycle_BAB
         loss_G.backward()
         
         optimizer_G.step()
         ###################################
 
         ###### Discriminator A ######
-        optimizer_D_A.zero_grad()
+        optimizer_D_TIR_TIR.zero_grad()
 
         # Real loss
-        pred_real = netD_A(real_A)
+        pred_real = netD_TIR(real_TIR)
         loss_D_real = criterion_GAN(pred_real, target_real)
 
         # Fake loss
-        fake_A = fake_A_buffer.push_and_pop(fake_A)
-        pred_fake = netD_A(fake_A.detach())
+        fake_TIR = fake_TIR_buffer.push_and_pop(fake_TIR)
+        pred_fake = netD_TIR(fake_TIR.detach())
         loss_D_fake = criterion_GAN(pred_fake, target_fake)
 
         # Total loss
-        loss_D_A = (loss_D_real + loss_D_fake)*0.5
-        loss_D_A.backward()
+        loss_D_TIR = (loss_D_real + loss_D_fake)*0.5
+        loss_D_TIR.backward()
 
-        optimizer_D_A.step()
+        optimizer_D_TIR_TIR.step()
         ###################################
 
         ###### Discriminator B ######
-        optimizer_D_B.zero_grad()
+        optimizer_D_RGB.zero_grad()
 
         # Real loss
-        pred_real = netD_B(real_B)
+        pred_real = netD_RGB(real_RGB)
         loss_D_real = criterion_GAN(pred_real, target_real)
         
         # Fake loss
-        fake_B = fake_B_buffer.push_and_pop(fake_B)
-        pred_fake = netD_B(fake_B.detach())
+        fake_RGB = fake_RGB_buffer.push_and_pop(fake_RGB)
+        pred_fake = netD_RGB(fake_RGB.detach())
         loss_D_fake = criterion_GAN(pred_fake, target_fake)
 
         # Total loss
-        loss_D_B = (loss_D_real + loss_D_fake)*0.5
-        loss_D_B.backward()
+        loss_D_RGB = (loss_D_real + loss_D_fake)*0.5
+        loss_D_RGB.backward()
 
-        optimizer_D_B.step()
+        optimizer_D_RGB.step()
         ###################################
 
         # Progress report (http://localhost:8097)
         # logger.log({'loss_G': loss_G, 'loss_G_identity': (loss_identity_A + loss_identity_B), 'loss_G_GAN': (loss_GAN_A2B + loss_GAN_B2A),
-        #             'loss_G_cycle': (loss_cycle_ABA + loss_cycle_BAB), 'loss_D': (loss_D_A + loss_D_B)},
-        #             images={'real_A': real_A, 'real_B': real_B, 'fake_A': fake_A, 'fake_B': fake_B})
+        #             'loss_G_cycle': (loss_cycle_ABA + loss_cycle_BAB), 'loss_D': (loss_D_TIR + loss_D_RGB)},
+        #             images={'real_TIR': real_TIR, 'real_RGB': real_RGB, 'fake_TIR': fake_TIR, 'fake_RGB': fake_RGB})
 
     # Update learning rates
     lr_scheduler_G.step()
-    lr_scheduler_D_A.step()
-    lr_scheduler_D_B.step()
+    lr_scheduler_D_TIR.step()
+    lr_scheduler_D_RGB.step()
 
     # Save models checkpoints
-    torch.save(netG_A2B.state_dict(), os.path.join(main_dir,'RGB2TIR/output/p_netG_A2B.pth'))
-    torch.save(netG_B2A.state_dict(), os.path.join(main_dir,'RGB2TIR/output/p_netG_B2A.pth'))
-    torch.save(netD_A.state_dict(), os.path.join(main_dir,'RGB2TIR/output/p_netD_A.pth'))
-    torch.save(netD_B.state_dict(), os.path.join(main_dir,'RGB2TIR/output/p_netD_B.pth'))
+    torch.save(netG_TIR_2_RGB.state_dict(), os.path.join(main_dir,'RGB2TIR/output/p_netG_TIR_2_RGB.pth'))
+    torch.save(netG_RGB_2_TIR.state_dict(), os.path.join(main_dir,'RGB2TIR/output/p_netG_RGB_2_TIR.pth'))
+    torch.save(netD_TIR.state_dict(), os.path.join(main_dir,'RGB2TIR/output/p_netD_TIR.pth'))
+    torch.save(netD_RGB.state_dict(), os.path.join(main_dir,'RGB2TIR/output/p_netD_RGB.pth'))
 ###################################
 
 
