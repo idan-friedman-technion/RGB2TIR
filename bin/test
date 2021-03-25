@@ -13,20 +13,19 @@ main_dir = pathlib.Path(__file__).parent.parent.parent.absolute()
 sys.path.append(str(main_dir))
 #################################################################
 
-# import torchvision.transforms as transforms
+import torchvision.transforms as transforms
 from torchvision.utils import save_image
-# from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from PIL import Image
 import torch
 import tqdm
-import png
-import numpy as np
+import shutil
 import matplotlib.pylab as plot
 
 from RGB2TIR.utils.models import Generator
 from RGB2TIR.utils.datasets import get_list_of_files
-# from RGB2TIR.utils.datasets import ImageDataset
+from RGB2TIR.utils.datasets import ImageDataset
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batchSize', type=int, default=1, help='size of the batches')
@@ -34,14 +33,14 @@ parser.add_argument('--dataroot', type=str, default='datasets/horse2zebra/', hel
 parser.add_argument('--input_nc', type=int, default=3, help='number of channels of input data')
 parser.add_argument('--output_nc', type=int, default=3, help='number of channels of output data')
 parser.add_argument('--size', type=int, default=256, help='size of the data (squared assumed)')
-parser.add_argument('--TIR_w', type=int, default=640, help='size of the data TIR width (squared assumed)')
-parser.add_argument('--TIR_h', type=int, default=480, help='size of the data crop (squared assumed)')
-parser.add_argument('--RGB_w', type=int, default=1280, help='size of the data TIR width (squared assumed)')
-parser.add_argument('--RGB_h', type=int, default=960, help='size of the data crop (squared assumed)')
+parser.add_argument('--TIR_w', type=int, default=256, help='size of the data TIR width (squared assumed)')
+parser.add_argument('--TIR_h', type=int, default=256, help='size of the data crop (squared assumed)')
+parser.add_argument('--RGB_w', type=int, default=256, help='size of the data TIR width (squared assumed)')
+parser.add_argument('--RGB_h', type=int, default=256, help='size of the data crop (squared assumed)')
 parser.add_argument('--cuda', action='store_true', help='use GPU computation')
 parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
-parser.add_argument('--generator_A2B', type=str, default='RGB2TIR/output/p_netG_A2B.pth', help='A2B generator checkpoint file')
-parser.add_argument('--generator_B2A', type=str, default='RGB2TIR/output/p_netG_B2A.pth', help='B2A generator checkpoint file')
+parser.add_argument('--generator_TIR_2_RGB', type=str, default='RGB2TIR/output/p_netG_TIR_2_RGB.pth', help='TIR_2_RGB generator checkpoint file')
+parser.add_argument('--generator_RGB_2_TIR', type=str, default='RGB2TIR/output/p_netG_RGB_2_TIR.pth', help='RGB_2_TIR generator checkpoint file')
 opt = parser.parse_args()
 print(opt)
 
@@ -50,65 +49,66 @@ if torch.cuda.is_available() and not opt.cuda:
 
 ###### Definition of variables ######
 # Networks
-netG_A2B = Generator(opt.input_nc, opt.output_nc)
-netG_B2A = Generator(opt.output_nc, opt.input_nc)
+netG_TIR_2_RGB = Generator(opt.input_nc, opt.output_nc)
+netG_RGB_2_TIR = Generator(opt.output_nc, opt.input_nc)
 
 if opt.cuda:
-    netG_A2B.cuda()
-    netG_B2A.cuda()
+    netG_TIR_2_RGB.cuda()
+    netG_RGB_2_TIR.cuda()
 
 # Load state dicts
-netG_A2B.load_state_dict(torch.load(os.path.join(main_dir, opt.generator_A2B)))
-netG_B2A.load_state_dict(torch.load(os.path.join(main_dir, opt.generator_B2A)))
+netG_TIR_2_RGB.load_state_dict(torch.load(os.path.join(main_dir, opt.generator_TIR_2_RGB)))
+netG_RGB_2_TIR.load_state_dict(torch.load(os.path.join(main_dir, opt.generator_RGB_2_TIR)))
 
 # Set model's test mode
-netG_A2B.eval()
-netG_B2A.eval()
+netG_TIR_2_RGB.eval()
+netG_RGB_2_TIR.eval()
 
 # Inputs & targets memory allocation
 Tensor = torch.cuda.FloatTensor if opt.cuda else torch.Tensor
-input_A = Tensor(opt.batchSize, opt.TIR_w, opt.TIR_h, opt.input_nc)
-input_B = Tensor(opt.batchSize, opt.RGB_w, opt.RGB_h, opt.input_nc)
+input_A = Tensor(opt.batchSize, opt.input_nc, opt.TIR_w, opt.TIR_h)
+input_B = Tensor(opt.batchSize, opt.input_nc, opt.RGB_w, opt.RGB_h)
 
 # Dataset loader
-# transforms_ = [ transforms.ToTensor(),
-#                 transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5)) ]
-# dataloader = DataLoader(ImageDataset(opt.dataroot, transforms_=transforms_, mode='test'),
-#                         batch_size=opt.batchSize, shuffle=False, num_workers=0)
+transforms_ = [ transforms.ToTensor(),
+                transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5)) ]
+dataloader = DataLoader(ImageDataset(opt.dataroot, transforms_=transforms_, mode='test'),
+                        batch_size=opt.batchSize, shuffle=False, num_workers=0)
 ###################################
 
 ###### Testing######
 
 # Create output dirs if they don't exist
-if not os.path.exists(os.path.join(main_dir, 'RGB2TIR/output/RGBtoTIR')):
-    os.makedirs(os.path.join(main_dir, 'RGB2TIR/output/RGBtoTIR'))
-if not os.path.exists(os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB')):
-    os.makedirs(os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB'))
+# if not os.path.exists(os.path.join(main_dir, 'RGB2TIR/output/RGBtoTIR')):
+shutil.rmtree(os.path.join(main_dir, 'RGB2TIR/output/RGBtoTIR'))
+os.makedirs(os.path.join(main_dir, 'RGB2TIR/output/RGBtoTIR'))
+# if not os.path.exists(os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB')):
+shutil.rmtree(os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB'))
+os.makedirs(os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB'))
 
-final_list = get_list_of_files(mode='test')
+# final_list = get_list_of_files(mode='test')
 
 
-print(f"Starting test. {len(final_list)} files to test")
-for i, batch in enumerate(tqdm.tqdm(final_list, total=len(final_list), leave=False)):
+print(f"Starting test. {len(dataloader)} files to test")
+for i, batch in enumerate(tqdm.tqdm(dataloader, total=len(dataloader), leave=False)):
     # Set model input
-    item_TIR = plot.array(Image.open(batch['TIR']).convert("RGB"))
-    item_RGB = plot.array(Image.open(batch['RGB']).convert("RGB"))
-    item_RGB = item_RGB[113:1393, 33:993, :]
-    real_A = Variable(input_A.copy_(torch.from_numpy(item_TIR)))
-    real_B = Variable(input_B.copy_(torch.from_numpy(item_RGB)))
+    item_RGB = batch['RGB'][:, :, 113:1393, 33:993]
 
-    real_A = real_A.permute(0, 3, 1, 2)
+    real_TIR = Variable(input_A.copy_(batch['TIR'][0, :, 0:256, 0:256]))
+    real_RGB = Variable(input_B.copy_(item_RGB[0, :, 0:256, 0:256]))
 
-    real_B = real_B.permute(0, 3, 1, 2)
 
     # Generate output
-    fake_B = 0.5*(netG_A2B(real_A) + 1.0)
-    fake_A = 0.5*(netG_B2A(real_B) + 1.0)
+    fake_RGB = 0.5*(netG_TIR_2_RGB(real_TIR) + 1.0)
+    fake_TIR = 0.5*(netG_RGB_2_TIR(real_RGB) + 1.0)
+
+    # fake_TIR = fake_TIR.permute(0, 2, 3, 1)
+    # fake_RGB = fake_RGB.permute(0, 2, 3, 1)
 
 
     # Save image files
-    save_image(fake_A, os.path.join(main_dir, 'RGB2TIR/output/RGBtoTIR/%04d.png') % (i+1))
-    save_image(fake_B, os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB/%04d.png') % (i+1))
+    save_image(fake_TIR[0], os.path.join(main_dir, 'RGB2TIR/output/RGBtoTIR/%04d.png') % (i+1))
+    save_image(fake_RGB[0], os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB/%04d.png') % (i+1))
 
     # sys.stdout.write('\rGenerated images %04d of %04d' % (i+1, len(final_list)))
 
