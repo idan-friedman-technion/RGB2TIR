@@ -28,17 +28,17 @@ from RGB2TIR.utils.datasets import get_list_of_files
 from RGB2TIR.utils.datasets import ImageDataset
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--batchSize', type=int, default=1, help='size of the batches')
-parser.add_argument('--dataroot', type=str, default='datasets/horse2zebra/', help='root directory of the dataset')
-parser.add_argument('--input_nc', type=int, default=3, help='number of channels of input data')
-parser.add_argument('--output_nc', type=int, default=3, help='number of channels of output data')
-parser.add_argument('--size', type=int, default=256, help='size of the data (squared assumed)')
-parser.add_argument('--TIR_w', type=int, default=256, help='size of the data TIR width (squared assumed)')
-parser.add_argument('--TIR_h', type=int, default=256, help='size of the data crop (squared assumed)')
-parser.add_argument('--RGB_w', type=int, default=256, help='size of the data TIR width (squared assumed)')
-parser.add_argument('--RGB_h', type=int, default=256, help='size of the data crop (squared assumed)')
-parser.add_argument('--cuda', action='store_true', help='use GPU computation')
-parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
+parser.add_argument('--batchSize',           type=int, default=1,    help='size of the batches')
+parser.add_argument('--dataroot',            type=str, default='datasets/horse2zebra/', help='root directory of the dataset')
+parser.add_argument('--input_nc',            type=int, default=3,    help='number of channels of input data')
+parser.add_argument('--output_nc',           type=int, default=3,    help='number of channels of output data')
+parser.add_argument('--size',                type=int, default=256,  help='size of the data (squared assumed)')
+parser.add_argument('--TIR_w',               type=int, default=640,  help='size of the data TIR width (squared assumed)')
+parser.add_argument('--TIR_h',               type=int, default=480,  help='size of the data crop (squared assumed)')
+parser.add_argument('--RGB_w',               type=int, default=1280, help='size of the data TIR width (squared assumed)')
+parser.add_argument('--RGB_h',               type=int, default=960,  help='size of the data crop (squared assumed)')
+parser.add_argument('--cuda',                action='store_true',    help='use GPU computation')
+parser.add_argument('--n_cpu',               type=int, default=8,    help='number of cpu threads to use during batch generation')
 parser.add_argument('--generator_TIR_2_RGB', type=str, default='RGB2TIR/output/p_netG_TIR_2_RGB.pth', help='TIR_2_RGB generator checkpoint file')
 parser.add_argument('--generator_RGB_2_TIR', type=str, default='RGB2TIR/output/p_netG_RGB_2_TIR.pth', help='RGB_2_TIR generator checkpoint file')
 opt = parser.parse_args()
@@ -70,7 +70,7 @@ input_A = Tensor(opt.batchSize, opt.input_nc, opt.TIR_w, opt.TIR_h)
 input_B = Tensor(opt.batchSize, opt.input_nc, opt.RGB_w, opt.RGB_h)
 
 # Dataset loader
-transforms_ = [ transforms.ToTensor(),
+transforms_ = [transforms.ToTensor(),
                 transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5)) ]
 dataloader = DataLoader(ImageDataset(opt.dataroot, transforms_=transforms_, mode='test'),
                         batch_size=opt.batchSize, shuffle=False, num_workers=0)
@@ -91,15 +91,18 @@ os.makedirs(os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB'))
 
 print(f"Starting test. {len(dataloader)} files to test")
 for i, batch in enumerate(tqdm.tqdm(dataloader, total=len(dataloader), leave=False)):
+    if i%10 != 0:
+        continue
     # Set model input
     item_RGB = batch['RGB'][:, :, 113:1393, 33:993]
 
-    real_TIR = Variable(input_A.copy_(batch['TIR'][0, :, 0:256, 0:256]))
-    real_RGB = Variable(input_B.copy_(item_RGB[0, :, 0:256, 0:256]))
+    real_TIR = Variable(input_A.copy_(batch['TIR'][0, :, :, ]))
+    real_RGB = Variable(input_B.copy_(item_RGB[0, :, :, :]))
 
 
     # Generate output
-    fake_RGB = 0.5*(netG_TIR_2_RGB(real_TIR) + 1.0)
+    fake_RGB = netG_TIR_2_RGB(real_TIR)
+    # fake_RGB = 0.5*(netG_TIR_2_RGB(real_TIR) + 1.0)
     fake_TIR = 0.5*(netG_RGB_2_TIR(real_RGB) + 1.0)
 
     # fake_TIR = fake_TIR.permute(0, 2, 3, 1)

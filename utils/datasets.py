@@ -82,11 +82,11 @@ def shuffle_data():
 
 
     ## Extract the sub datasets from the full dataset using the calculated indices
-    TIR_train = [TIR[x] for x in train_indices]
-    RGB_train = [RGB[x] for x in train_indices]
+    TIR_train = [TIR[x] for x in train_indices if x%4 == 0]
+    RGB_train = [RGB[x] for x in train_indices if x%4 == 0]
 
-    TIR_test = [TIR[x] for x in test_indices]
-    RGB_test = [RGB[x] for x in test_indices]
+    TIR_test = [TIR[x] for x in test_indices if x%4 == 0]
+    RGB_test = [RGB[x] for x in test_indices if x%4 == 0]
 
     file_path = os.path.join(root,'bin/Data_sorted.txt')
     data_file = open(file_path, 'w')

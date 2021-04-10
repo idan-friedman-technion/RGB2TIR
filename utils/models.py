@@ -19,8 +19,15 @@ class ResidualBlock(nn.Module):
         return x + self.conv_block(x)
 
 class Generator(nn.Module):
-    def __init__(self, input_nc, output_nc, n_residual_blocks=9):
+    def __init__(self, input_nc, output_nc, n_residual_blocks=9, input_type="TIR"):
         super(Generator, self).__init__()
+        if (input_type == "RGB"):
+            up_sampling   = 2
+            down_sampling = 4
+        else:
+            up_sampling   = 4
+            down_sampling = 2
+
 
         # Initial convolution block       
         model = [   nn.ReflectionPad2d(3),
@@ -31,7 +38,7 @@ class Generator(nn.Module):
         # Downsampling
         in_features = 16
         out_features = in_features*2
-        for _ in range(2):
+        for _ in range(down_sampling):
             model += [  nn.Conv2d(in_features, out_features, 3, stride=2, padding=1),
                         nn.InstanceNorm2d(out_features),
                         nn.ReLU(inplace=True) ]
@@ -44,7 +51,7 @@ class Generator(nn.Module):
 
         # Upsampling
         out_features = in_features//2
-        for _ in range(2):
+        for _ in range(up_sampling):
             model += [  nn.ConvTranspose2d(in_features, out_features, 3, stride=2, padding=1, output_padding=1),
                         nn.InstanceNorm2d(out_features),
                         nn.ReLU(inplace=True) ]
@@ -53,7 +60,7 @@ class Generator(nn.Module):
 
         # Output layer
         model += [  nn.ReflectionPad2d(3),
-                    nn.Conv2d(16, output_nc, 7),
+                    nn.Conv2d(in_features, output_nc, 7),
                     nn.Tanh() ]
 
         self.model = nn.Sequential(*model)
