@@ -29,8 +29,7 @@ from RGB2TIR.utils.datasets import ImageDataset
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batchSize',           type=int, default=1,    help='size of the batches')
-parser.add_argument('--dataroot',            type=str, default='datasets/horse2zebra/', help='root directory of the dataset')
-parser.add_argument('--input_nc',            type=int, default=3,    help='number of channels of input data')
+parser.add_argument('--input_nc',            type=int, default=1,    help='number of channels of input data')
 parser.add_argument('--output_nc',           type=int, default=3,    help='number of channels of output data')
 parser.add_argument('--size',                type=int, default=256,  help='size of the data (squared assumed)')
 parser.add_argument('--TIR_w',               type=int, default=640,  help='size of the data TIR width (squared assumed)')
@@ -49,8 +48,8 @@ if torch.cuda.is_available() and not opt.cuda:
 
 ###### Definition of variables ######
 # Networks
-netG_TIR_2_RGB = Generator(opt.input_nc, opt.output_nc)
-netG_RGB_2_TIR = Generator(opt.output_nc, opt.input_nc)
+netG_TIR_2_RGB = Generator(opt.input_nc, opt.output_nc ,input_type="TIR")
+netG_RGB_2_TIR = Generator(opt.output_nc, opt.input_nc, input_type="RGB")
 
 if opt.cuda:
     netG_TIR_2_RGB.cuda()
@@ -67,13 +66,22 @@ netG_RGB_2_TIR.eval()
 # Inputs & targets memory allocation
 Tensor = torch.cuda.FloatTensor if opt.cuda else torch.Tensor
 input_A = Tensor(opt.batchSize, opt.input_nc, opt.TIR_w, opt.TIR_h)
-input_B = Tensor(opt.batchSize, opt.input_nc, opt.RGB_w, opt.RGB_h)
+input_B = Tensor(opt.batchSize, opt.output_nc, opt.RGB_w, opt.RGB_h)
 
 # Dataset loader
-transforms_ = [transforms.ToTensor(),
-                transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5)) ]
-dataloader = DataLoader(ImageDataset(opt.dataroot, transforms_=transforms_, mode='test'),
-                        batch_size=opt.batchSize, shuffle=False, num_workers=0)
+# transforms_ = [transforms.ToTensor(),
+#                 transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5)) ]
+# dataloader = DataLoader(ImageDataset(transforms_=transforms_, mode='test'),
+#                         batch_size=opt.batchSize, shuffle=False, num_workers=0)
+
+TIR_transforms_ = [transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5,), (0.5,))]
+RGB_transforms_ = [transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+dataloader = DataLoader(ImageDataset(TIR_transforms_=TIR_transforms_, RGB_transforms_=TIR_transforms_, mode='test',
+                        unaligned=True), batch_size=opt.batchSize, shuffle=True, num_workers=0)
 ###################################
 
 ###### Testing######
@@ -101,8 +109,8 @@ for i, batch in enumerate(tqdm.tqdm(dataloader, total=len(dataloader), leave=Fal
 
 
     # Generate output
-    fake_RGB = netG_TIR_2_RGB(real_TIR)
-    # fake_RGB = 0.5*(netG_TIR_2_RGB(real_TIR) + 1.0)
+    # fake_RGB = netG_TIR_2_RGB(real_TIR)
+    fake_RGB = 0.5*(netG_TIR_2_RGB(real_TIR) + 1.0)
     fake_TIR = 0.5*(netG_RGB_2_TIR(real_RGB) + 1.0)
 
     # fake_TIR = fake_TIR.permute(0, 2, 3, 1)

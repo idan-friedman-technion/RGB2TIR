@@ -23,9 +23,9 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
         if (input_type == "RGB"):
             up_sampling   = 2
-            down_sampling = 4
+            down_sampling = 3
         else:
-            up_sampling   = 4
+            up_sampling   = 3
             down_sampling = 2
 
 
@@ -69,7 +69,7 @@ class Generator(nn.Module):
         return self.model(x)
 
 class Discriminator(nn.Module):
-    def __init__(self, input_nc):
+    def __init__(self, input_nc, input_type="TIR"):
         super(Discriminator, self).__init__()
 
         # A bunch of convolutions one after another
@@ -91,9 +91,11 @@ class Discriminator(nn.Module):
         # FCN classification layer
         model += [nn.Conv2d(128, 1, 4, padding=1)]
 
+        model += [nn.Sigmoid()]
         self.model = nn.Sequential(*model)
 
     def forward(self, x):
         x =  self.model(x)
         # Average pooling and flatten
         return F.avg_pool2d(x, x.size()[2:]).view(x.size()[0], -1)
+        # return x
