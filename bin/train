@@ -31,6 +31,7 @@ from torch.autograd import Variable
 
 import torch
 import tqdm
+import lpips
 import matplotlib.pylab as plot
 
 
@@ -49,7 +50,7 @@ from RGB2TIR.utils.datasets import get_list_of_files
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--epoch',       type=int,   default=0,    help='starting epoch')
-parser.add_argument('--n_epochs',    type=int,   default=60,   help='number of epochs of training')
+parser.add_argument('--n_epochs',    type=int,   default=40,   help='number of epochs of training')
 parser.add_argument('--batchSize',   type=int,   default=1,    help='size of the batches')
 parser.add_argument('--lr',          type=float, default=0.005, help='initial learning rate')
 parser.add_argument('--decay_epoch', type=int,   default=20,   help='epoch to start linearly decaying the learning rate to 0')
@@ -82,6 +83,8 @@ if opt.sd:
 ###### Definition of variables ######
 # Networks
 vgg19 = torchvision.models.vgg19_bn(pretrained=True)
+critertion_lpips = lpips.LPIPS(net='alex',version=0.1)
+
 netG_TIR_2_RGB = Generator(opt.input_nc, opt.output_nc, input_type="TIR")
 netG_RGB_2_TIR = Generator(opt.output_nc, opt.input_nc, input_type="RGB")
 netD_TIR = Discriminator(opt.input_nc, input_type="TIR")
@@ -89,6 +92,7 @@ netD_RGB = Discriminator(opt.output_nc, input_type="RGB")
 
 if opt.cuda:
     vgg19.cuda()
+    critertion_lpips.cuda()
     netG_TIR_2_RGB.cuda()
     netG_RGB_2_TIR.cuda()
     netD_TIR.cuda()
@@ -151,6 +155,8 @@ mean_Gan_loss       = []
 mean_Generate_loss  = []
 mean_Recovered_loss = []
 mean_Ssim_loss      = []
+mean_Lpips_f_loss   = []
+# pred_real_l, pred_fake_l = [], []
 
 ###### Training ######
 final_list = get_list_of_files()
@@ -160,8 +166,14 @@ if opt.nr:
     exit(1)
 
 
+print('#########################################')
+print('train')
+print('=====')
 print('Starting Pre Train For Discriminators')
-for i, batch in tqdm.tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
+for i, batch in enumerate(dataloader):
+    if i == 20:
+        break
+
     item_RGB = batch['RGB'][:, :, 113:1393, 33:993]
 
     real_TIR = Variable(input_TIR.copy_(batch['TIR'][0, :, :, :]))
@@ -207,18 +219,18 @@ for i, batch in tqdm.tqdm(enumerate(dataloader), total=len(dataloader), leave=Fa
 
     optimizer_D_RGB.step()
 
-
-print(f"pred real - {pred_real} pred fake - {pred_fake}")
-exit(1)
+print("Finished Pre-Training")
 
 print(f"Starting train. {opt.n_epochs} epoches will be ran, {len(dataloader)} files for each epoch\n")
 for ep in range(opt.n_epochs):
-    sys.stdout.write(f"\r\repoch number {ep}/{opt.n_epochs} - {ep * 100 /opt.n_epochs}%")
+    sys.stdout.write(f"\r\repoch number {ep + 1}/{opt.n_epochs} - {(ep + 1) * 100 /opt.n_epochs}%")
     print()
-    Gan_loss       = []
-    Generate_loss  = []
-    Recovered_loss = []
-    Ssim_loss      = []
+    Gan_loss        = []
+    Generate_loss   = []
+    Recovered_loss  = []
+    Ssim_loss       = []
+    lpips_fake_loss = []
+    pred_real_l, pred_fake_l = [], []
 
     for i, batch in tqdm.tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
         # sys.stdout.write(f"\rfile number {i}/{len(dataloader)} - {i * 100 /len(dataloader) :.2f}%")
@@ -228,7 +240,7 @@ for ep in range(opt.n_epochs):
         real_TIR = Variable(input_TIR.copy_(batch['TIR'][0, :, :, :]))
         real_RGB = Variable(input_RGB.copy_(item_RGB[0, :, :, :]))
 
-
+        l = critertion_lpips.forward(real_RGB, real_RGB)
         ###### Generators TIR_2_RGB and RGB_2_TIR ######
         optimizer_G.zero_grad()
 
@@ -244,30 +256,37 @@ for ep in range(opt.n_epochs):
         loss_GAN_RGB_2_TIR = criterion_GAN(pred_fake[0, :], target_real)
 
         # Fake vs. Real Loss
-        loss_TIR_Generate = criterion_GAN(fake_TIR, real_TIR) * 5
-        loss_RGB_Generate = criterion_GAN(fake_RGB, real_RGB) * 5
+        loss_TIR_Generate = criterion_GAN(fake_TIR, real_TIR)
+        loss_RGB_Generate = criterion_GAN(fake_RGB, real_RGB)
         Generate_loss.append(loss_TIR_Generate.item())
 
         # Cycle loss
         recovered_TIR = netG_RGB_2_TIR(fake_RGB)
-        loss_cycle_ABA = criterion_cycle(recovered_TIR, real_TIR) * 3
+        loss_cycle_ABA = criterion_cycle(recovered_TIR, real_TIR)
         Recovered_loss.append(loss_cycle_ABA.item())
 
         recovered_RGB = netG_TIR_2_RGB(fake_TIR)
-        loss_cycle_BAB = criterion_cycle(recovered_RGB, real_RGB) * 3
+        loss_cycle_BAB = criterion_cycle(recovered_RGB, real_RGB)
+
 
         # SSIM loss
-        loss_ssim_ABA = (1 - criterion_ssim(recovered_TIR, real_TIR)) * 5
-        loss_ssim_BAB = (1 - criterion_ssim(recovered_RGB, real_RGB)) * 5
+        loss_ssim_ABA = (1 - criterion_ssim(recovered_TIR, real_TIR))
+        loss_ssim_BAB = (1 - criterion_ssim(recovered_RGB, real_RGB))
         Ssim_loss.append(loss_ssim_ABA.item())
 
-        # VGG loss
-        # loss_vgg_RGB = vgg19(real_RGB)
+        # LPIPS loss
+        loss_lpips_fake      = critertion_lpips.forward(fake_RGB, real_RGB)[0, 0, 0, 0]
+        loss_lpips_recovered = critertion_lpips.forward(recovered_RGB, real_RGB)[0, 0, 0, 0]
+        lpips_fake_loss.append(loss_lpips_fake.item())
 
         # Total loss
-        loss_G = loss_GAN_TIR_2_RGB + loss_GAN_RGB_2_TIR + loss_TIR_Generate + loss_RGB_Generate + loss_cycle_ABA + loss_cycle_BAB + loss_ssim_BAB + loss_ssim_ABA
-        # loss_G = loss_identity_TIR + loss_identity_RGB + loss_GAN_TIR_2_RGB + loss_GAN_RGB_2_TIR + loss_cycle_ABA + loss_cycle_BAB + loss_ssim_BAB + loss_ssim_ABA
-        # loss_G = loss_GAN_TIR_2_RGB + loss_GAN_RGB_2_TIR + loss_cycle_ABA + loss_cycle_BAB
+        total_loss_GAN = loss_GAN_TIR_2_RGB + loss_GAN_RGB_2_TIR
+        total_loss_Generate = loss_TIR_Generate + loss_RGB_Generate
+        total_loss_cycle = loss_cycle_ABA + loss_cycle_BAB
+        total_loss_ssim = loss_ssim_BAB + loss_ssim_ABA
+        total_loss_lpips = loss_lpips_fake + loss_lpips_recovered
+
+        loss_G = total_loss_GAN + total_loss_Generate + total_loss_cycle + total_loss_ssim + total_loss_lpips
         loss_G.backward()
         
         optimizer_G.step()
@@ -281,11 +300,13 @@ for ep in range(opt.n_epochs):
         # Real loss
         pred_real = netD_TIR(real_TIR)
         loss_D_real = criterion_GAN(pred_real[0, :], target_real)
+        pred_real_l.append(pred_real[0, :].item())
 
         # Fake loss
         fake_TIR = fake_TIR_buffer.push_and_pop(fake_TIR)
         pred_fake = netD_TIR(fake_TIR.detach())
         loss_D_fake = criterion_GAN(pred_fake[0, :], target_fake)
+        pred_fake_l.append(pred_fake[0, :].item())
 
         # Total loss
         loss_D_TIR = (loss_D_real + loss_D_fake)*0.5
@@ -335,30 +356,37 @@ for ep in range(opt.n_epochs):
     mean_Generate_loss.append(statistics.mean(Generate_loss))
     mean_Recovered_loss.append(statistics.mean(Recovered_loss))
     mean_Ssim_loss.append(statistics.mean(Ssim_loss))
+    mean_Lpips_f_loss.append(statistics.mean(lpips_fake_loss))
 ###################################
 
 print('#########################################')
 print('summary')
 print('=======')
-print("The Printings needs to be negative!!!!")
-print(f"Gan loss       - {mean_Gan_loss[0]} - {', '.join([f'{(x1-x2):.4f}' for (x1, x2) in zip(mean_Gan_loss[1:], mean_Gan_loss[:-1])])}")
-print(f"Generate loss  - {mean_Generate_loss[0]} - {', '.join([f'{(x1-x2):.4f}' for (x1, x2) in zip(mean_Generate_loss[1:], mean_Generate_loss[:-1])])}")
-print(f"Recovered loss - {mean_Recovered_loss[0]} - {', '.join([f'{(x1-x2):.4f}' for (x1, x2) in zip(mean_Recovered_loss[1:], mean_Recovered_loss[:-1])])}")
-print(f"Ssim loss      - {mean_Ssim_loss[0]} - {', '.join([f'{(x1-x2):.4f}' for (x1, x2) in zip(mean_Ssim_loss[1:], mean_Ssim_loss[:-1])])}")
 
 plot.figure(1)
-plot.subplot(2,2,1)
-plot.plot(opt.n_epochs, mean_Gan_loss)
+plot.subplot(2, 2, 1)
+plot.plot(range(opt.n_epochs), mean_Gan_loss)
 plot.title('Mean Gan Loss')
-plot.subplot(2,2,2)
-plot.plot(opt.n_epochs, mean_Generate_loss)
+plot.subplot(2, 2, 2)
+plot.plot(range(opt.n_epochs), mean_Generate_loss)
 plot.title('Mean Generate Loss')
-plot.subplot(2,2,3)
-plot.plot(opt.n_epochs, mean_Recovered_loss)
+plot.subplot(2, 2, 3)
+plot.plot(range(opt.n_epochs), mean_Recovered_loss)
 plot.title('Mean Recovered Loss')
-plot.subplot(2,2,4)
-plot.plot(opt.n_epochs, mean_Ssim_loss)
+plot.subplot(2, 2, 4)
+plot.plot(range(opt.n_epochs), mean_Ssim_loss)
 plot.title('Mean Ssim Loss')
+
+plot.figure(2)
+plot.subplot(2, 2, 1)
+plot.plot(range(len(pred_fake_l)), pred_fake_l)
+plot.title('Pred Fake of TIR Dis')
+plot.subplot(2, 2, 2)
+plot.plot(range(len(pred_real_l)), pred_real_l)
+plot.title('Pred Real of TIR Dis')
+plot.subplot(2, 2, 3)
+plot.plot(range(len(mean_Lpips_f_loss)), mean_Lpips_f_loss)
+plot.title('Mean LPIPS Fake Loss')
 plot.show()
 
 

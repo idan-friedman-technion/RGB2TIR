@@ -87,11 +87,11 @@ dataloader = DataLoader(ImageDataset(TIR_transforms_=TIR_transforms_, RGB_transf
 ###### Testing######
 
 # Create output dirs if they don't exist
-# if not os.path.exists(os.path.join(main_dir, 'RGB2TIR/output/RGBtoTIR')):
-shutil.rmtree(os.path.join(main_dir, 'RGB2TIR/output/RGBtoTIR'))
+if os.path.exists(os.path.join(main_dir, 'RGB2TIR/output/RGBtoTIR')):
+    shutil.rmtree(os.path.join(main_dir, 'RGB2TIR/output/RGBtoTIR'))
 os.makedirs(os.path.join(main_dir, 'RGB2TIR/output/RGBtoTIR'))
-# if not os.path.exists(os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB')):
-shutil.rmtree(os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB'))
+if os.path.exists(os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB')):
+    shutil.rmtree(os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB'))
 os.makedirs(os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB'))
 
 # final_list = get_list_of_files(mode='test')
