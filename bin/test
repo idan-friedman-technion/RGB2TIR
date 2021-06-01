@@ -38,8 +38,8 @@ parser.add_argument('--RGB_w',               type=int, default=1280, help='size 
 parser.add_argument('--RGB_h',               type=int, default=960,  help='size of the data crop (squared assumed)')
 parser.add_argument('--cuda',                action='store_true',    help='use GPU computation')
 parser.add_argument('--n_cpu',               type=int, default=8,    help='number of cpu threads to use during batch generation')
-parser.add_argument('--generator_TIR_2_RGB', type=str, default='RGB2TIR/output/p_netG_TIR_2_RGB.pth', help='TIR_2_RGB generator checkpoint file')
-parser.add_argument('--generator_RGB_2_TIR', type=str, default='RGB2TIR/output/p_netG_RGB_2_TIR.pth', help='RGB_2_TIR generator checkpoint file')
+parser.add_argument('--generator_TIR_2_RGB', type=str, default='RGB2TIR/output/p_netG_TIR_2_RGB.pth.bak', help='TIR_2_RGB generator checkpoint file')
+parser.add_argument('--generator_RGB_2_TIR', type=str, default='RGB2TIR/output/p_netG_RGB_2_TIR.pth.bak', help='RGB_2_TIR generator checkpoint file')
 opt = parser.parse_args()
 print(opt)
 
