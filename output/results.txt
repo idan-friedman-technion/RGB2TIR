@@ -1,0 +1,5 @@
+summary - generate_loss*2   GAN_loss*1.5
+=======
+vgg loss            - 2.213354516487855
+L1 RGB compare loss - 0.42257181383096254
+discriminator loss  - 0.42257181383096254
