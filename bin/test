@@ -138,7 +138,7 @@ for i, batch in enumerate(tqdm.tqdm(dataloader, total=len(dataloader), leave=Fal
 
     # Check empirical results
     pred_fake = netD_RGB(fake_RGB)
-    loss_GAN_TIR_2_RGB = criterion_MSE(pred_fake[0, :], target_real) * 1.4
+    loss_GAN_TIR_2_RGB = criterion_MSE(pred_fake[0, :], target_real)
     Gan_loss.append(loss_GAN_TIR_2_RGB.item())
 
     loss_RGB_Generate = criterion_L1(fake_RGB, real_RGB)
@@ -165,5 +165,5 @@ print('=======')
 
 print(f"vgg loss            - {statistics.mean(Vgg_loss)}")
 print(f"L1 RGB compare loss - {statistics.mean(Generate_loss)}")
-print(f"discriminator loss  - {statistics.mean(Generate_loss)}")
+print(f"discriminator loss  - {statistics.mean(Gan_loss)}")
 ###################################
