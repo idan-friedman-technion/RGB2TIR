@@ -4,15 +4,6 @@ import argparse
 import sys
 import os
 
-
-#################################################################
-# Import utils directory
-from os import path
-import pathlib
-main_dir = pathlib.Path(__file__).parent.parent.parent.absolute()
-sys.path.append(str(main_dir))
-#################################################################
-
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
 from torch.utils.data import DataLoader
@@ -29,6 +20,14 @@ from RGB2TIR.utils.models import Discriminator
 from RGB2TIR.utils.datasets import get_list_of_files
 from RGB2TIR.utils.datasets import ImageDataset
 from RGB2TIR.utils.vgg_loss import PerceptualLoss
+
+#################################################################
+# Import utils directory
+from os import path
+import pathlib
+main_dir = pathlib.Path(__file__).parent.parent.parent.absolute()
+sys.path.append(str(main_dir))
+#################################################################
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batchSize',           type=int, default=1,    help='size of the batches')
@@ -152,15 +151,18 @@ for i, batch in enumerate(tqdm.tqdm(dataloader, total=len(dataloader), leave=Fal
     fake_TIR = 0.5 * (fake_TIR + 1.0)
 
     # Save image files
-    save_image(fake_TIR[0], os.path.join(main_dir, 'RGB2TIR/output/RGBtoTIR/%04d.png') % (i+1))
-    save_image(fake_RGB[0], os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB/%04d.png') % (i+1))
+    # save_image(fake_TIR[0], os.path.join(main_dir, f'RGB2TIR/output/RGBtoTIR/%04d.png') % (i+1))
+    # save_image(fake_RGB[0], os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB/%04d.png') % (i+1))
+
+    save_image(fake_TIR[0], os.path.join(main_dir, f"RGB2TIR/output/RGBtoTIR/{batch['output'][0]}"))
+    save_image(fake_RGB[0], os.path.join(main_dir, f"RGB2TIR/output/TIRtoRGB/{batch['output'][0]}"))
 
     # sys.stdout.write('\rGenerated images %04d of %04d' % (i+1, len(final_list)))
 
 sys.stdout.write('\n')
 
 print('#########################################')
-print('summary - generate_loss*2   GAN_loss*1.5')
+print('summary - x5 vgg loss')
 print('=======')
 
 print(f"vgg loss            - {statistics.mean(Vgg_loss)}")

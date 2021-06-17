@@ -3,3 +3,18 @@ summary - generate_loss*2   GAN_loss*1.5
 vgg loss            - 2.213354516487855
 L1 RGB compare loss - 0.42257181383096254
 discriminator loss  - 0.42257181383096254
+
+
+#########################################
+summary - no weights
+=======
+vgg loss            - 2.1941226766659665
+L1 RGB compare loss - 0.5065221442626073
+discriminator loss  - 0.2213835699770313
+
+#########################################
+summary - x5 vgg loss
+=======
+vgg loss            - 1.9752250520082621
+L1 RGB compare loss - 0.4910653709219052
+discriminator loss  - 0.817312288742799

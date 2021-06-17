@@ -18,6 +18,7 @@ class ImageDataset(Dataset):
         self.unaligned = unaligned
         self.files_TIR = []
         self.files_RGB = []
+        self.mode = mode
         root = pathlib.Path(__file__).parent.parent.absolute()  # root of RGB2TIR
 
         try:
@@ -45,10 +46,17 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, index):
         # item_TIR = self.transform(Image.open(self.files_TIR[index % len(self.files_TIR)]).convert('RGB'))
-        item_TIR = self.TIR_transform(Image.open(self.files_TIR[index % len(self.files_TIR)]).convert('L'))
-        item_RGB = self.RGB_transform(Image.open(self.files_RGB[index % len(self.files_RGB)]).convert('RGB'))
+        TIR_file = self.files_TIR[index % len(self.files_TIR)]
+        RGB_file = self.files_RGB[index % len(self.files_RGB)]
+        item_TIR = self.TIR_transform(Image.open(TIR_file).convert('L'))
+        item_RGB = self.RGB_transform(Image.open(RGB_file).convert('RGB'))
 
-        return {'TIR': item_TIR, 'RGB': item_RGB}
+        if self.mode == 'test':
+            output = os.path.basename(os.path.dirname(os.path.dirname(RGB_file))) + '.' +  os.path.basename(RGB_file)
+            return {'TIR': item_TIR, 'RGB': item_RGB, 'output': str(output)}
+
+        else:
+            return {'TIR': item_TIR, 'RGB': item_RGB}
 
     def __len__(self):
         return max(len(self.files_TIR), len(self.files_RGB))

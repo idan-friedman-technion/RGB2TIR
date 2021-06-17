@@ -6,8 +6,6 @@ import sys
 import os
 from os import path
 import pathlib
-main_dir = pathlib.Path(__file__).parent.parent.parent.absolute()
-sys.path.append(str(main_dir))
 
 
 ################################################################
@@ -34,18 +32,21 @@ from RGB2TIR.utils.models import Discriminator
 from RGB2TIR.utils.utils import ReplayBuffer
 from RGB2TIR.utils.utils import LambdaLR
 from RGB2TIR.utils.vgg_loss import PerceptualLoss
-# from RGB2TIR.utils.utils import Logger
+# from RGB2TIR.utils.utils import LoggerS
 from RGB2TIR.utils.utils import weights_init_normal
 from RGB2TIR.utils.utils import ssim as criterion_ssim
 from RGB2TIR.utils.datasets import ImageDataset
 from RGB2TIR.utils.datasets import shuffle_data
 from RGB2TIR.utils.datasets import get_list_of_files
 
+main_dir = pathlib.Path(__file__).parent.parent.parent.absolute()
+sys.path.append(str(main_dir))
+
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--epoch',       type=int,   default=0,    help='starting epoch')
-parser.add_argument('--n_epochs',    type=int,   default=100,  help='number of epochs of training')
+parser.add_argument('--n_epochs',    type=int,   default=50,  help='number of epochs of training')
 parser.add_argument('--batchSize',   type=int,   default=1,    help='size of the batches')
 parser.add_argument('--lr',          type=float, default=0.005, help='initial learning rate')
 parser.add_argument('--decay_epoch', type=int,   default=20,   help='epoch to start linearly decaying the learning rate to 0')
@@ -168,94 +169,94 @@ print('#########################################')
 print('train')
 print('=====')
 print('Starting Pre Train For Discriminators')
-for i, batch in enumerate(dataloader):
-    if i == 50:
-        break
-
-    item_RGB = batch['RGB'][:, :, 113:1393, 33:993]
-
-    real_TIR = Variable(input_TIR.copy_(batch['TIR'][0, :, :, :]))
-    real_RGB = Variable(input_RGB.copy_(item_RGB[0, :, :, :]))
-
-    fake_RGB = netG_TIR_2_RGB(real_TIR)
-    fake_TIR = netG_RGB_2_TIR(real_RGB)
-
-
-    optimizer_D_TIR.zero_grad()
-
-    # Real loss
-    pred_real = netD_TIR(real_TIR)
-    loss_D_real = criterion_MSE(pred_real[0, :], target_real)
-
-    # Fake loss
-    fake_TIR = fake_TIR_buffer.push_and_pop(fake_TIR)
-    pred_fake = netD_TIR(fake_TIR.detach())
-    loss_D_fake = criterion_MSE(pred_fake[0, :], target_fake)
-
-    # Total loss
-    loss_D_TIR = (loss_D_real + loss_D_fake) * 0.5
-    loss_D_TIR.backward()
-
-    optimizer_D_TIR.step()
-    ###################################
-
-    ###### Discriminator RGB ######
-    optimizer_D_RGB.zero_grad()
-
-    # Real loss
-    pred_real = netD_RGB(real_RGB)
-    loss_D_real = criterion_MSE(pred_real[0, :], target_real)
-
-    # Fake loss
-    fake_RGB = fake_RGB_buffer.push_and_pop(fake_RGB)
-    pred_fake = netD_RGB(fake_RGB.detach())
-    loss_D_fake = criterion_MSE(pred_fake[0, :], target_fake)
-
-    # Total loss
-    loss_D_RGB = (loss_D_real + loss_D_fake) * 0.5
-    loss_D_RGB.backward()
-
-    optimizer_D_RGB.step()
+# for i, batch in enumerate(dataloader):
+#     if i == 50:
+#         break
+#
+#     item_RGB = batch['RGB'][:, :, 113:1393, 33:993]
+#
+#     real_TIR = Variable(input_TIR.copy_(batch['TIR'][0, :, :, :]))
+#     real_RGB = Variable(input_RGB.copy_(item_RGB[0, :, :, :]))
+#
+#     fake_RGB = netG_TIR_2_RGB(real_TIR)
+#     fake_TIR = netG_RGB_2_TIR(real_RGB)
+#
+#
+#     optimizer_D_TIR.zero_grad()
+#
+#     # Real loss
+#     pred_real = netD_TIR(real_TIR)
+#     loss_D_real = criterion_MSE(pred_real[0, :], target_real)
+#
+#     # Fake loss
+#     fake_TIR = fake_TIR_buffer.push_and_pop(fake_TIR)
+#     pred_fake = netD_TIR(fake_TIR.detach())
+#     loss_D_fake = criterion_MSE(pred_fake[0, :], target_fake)
+#
+#     # Total loss
+#     loss_D_TIR = (loss_D_real + loss_D_fake) * 0.5
+#     loss_D_TIR.backward()
+#
+#     optimizer_D_TIR.step()
+#     ###################################
+#
+#     ###### Discriminator RGB ######
+#     optimizer_D_RGB.zero_grad()
+#
+#     # Real loss
+#     pred_real = netD_RGB(real_RGB)
+#     loss_D_real = criterion_MSE(pred_real[0, :], target_real)
+#
+#     # Fake loss
+#     fake_RGB = fake_RGB_buffer.push_and_pop(fake_RGB)
+#     pred_fake = netD_RGB(fake_RGB.detach())
+#     loss_D_fake = criterion_MSE(pred_fake[0, :], target_fake)
+#
+#     # Total loss
+#     loss_D_RGB = (loss_D_real + loss_D_fake) * 0.5
+#     loss_D_RGB.backward()
+#
+#     optimizer_D_RGB.step()
 
 print('Starting Pre Train For Generators')
-for i, batch in enumerate(dataloader):
-    if i == 100:
-        break
-    item_RGB = batch['RGB'][:, :, 113:1393, 33:993]
-
-    real_TIR = Variable(input_TIR.copy_(batch['TIR'][0, :, :, :]))
-    real_RGB = Variable(input_RGB.copy_(item_RGB[0, :, :, :]))
-
-    ###### Generators TIR_2_RGB and RGB_2_TIR ######
-    optimizer_G.zero_grad()
-
-    # GAN loss
-    fake_RGB = netG_TIR_2_RGB(real_TIR)
-    fake_TIR = netG_RGB_2_TIR(real_RGB)
-
-    # Fake vs. Real Loss
-    loss_TIR_Generate = criterion_L1(fake_TIR, real_TIR) * 2.1
-    loss_RGB_Generate = criterion_L1(fake_RGB, real_RGB) * 2.2
-
-    # Cycle loss
-    recovered_TIR = netG_RGB_2_TIR(fake_RGB)
-    loss_cycle_ABA = criterion_L1(recovered_TIR, real_TIR)
-
-    recovered_RGB = netG_TIR_2_RGB(fake_TIR)
-    loss_cycle_BAB = criterion_L1(recovered_RGB, real_RGB)
-
-    # VGG loss
-    loss_vgg_TIR = vgg19_criterion(recovered_TIR, real_TIR)
-    loss_vgg_RGB = vgg19_criterion(recovered_RGB, real_RGB)
-
-    # Total loss
-    total_loss_Generate = loss_TIR_Generate + loss_RGB_Generate
-    total_loss_cycle = loss_cycle_ABA + loss_cycle_BAB
-    total_loss_vgg = loss_vgg_TIR + loss_vgg_RGB
-
-    loss_G = total_loss_Generate + total_loss_cycle + total_loss_vgg
-    loss_G.backward()
-    optimizer_G.step()
+# for i, batch in enumerate(dataloader):
+#     if i == 100:
+#         break
+#     item_RGB = batch['RGB'][:, :, 113:1393, 33:993]
+#
+#     real_TIR = Variable(input_TIR.copy_(batch['TIR'][0, :, :, :]))
+#     real_RGB = Variable(input_RGB.copy_(item_RGB[0, :, :, :]))
+#
+#     ###### Generators TIR_2_RGB and RGB_2_TIR ######
+#     optimizer_G.zero_grad()
+#
+#     # GAN loss
+#     fake_RGB = netG_TIR_2_RGB(real_TIR)
+#     fake_TIR = netG_RGB_2_TIR(real_RGB)
+#
+#     # Fake vs. Real Loss
+#     loss_TIR_Generate = criterion_L1(fake_TIR, real_TIR)
+#     loss_RGB_Generate = criterion_L1(fake_RGB, real_RGB)
+#
+#     # Cycle loss
+#     recovered_TIR = netG_RGB_2_TIR(fake_RGB)
+#     loss_cycle_ABA = criterion_L1(recovered_TIR, real_TIR)
+#
+#     recovered_RGB = netG_TIR_2_RGB(fake_TIR)
+#     loss_cycle_BAB = criterion_L1(recovered_RGB, real_RGB)
+#
+#     # VGG loss
+#     loss_vgg_TIR = vgg19_criterion(recovered_TIR, real_TIR)
+#     loss_vgg_RGB = vgg19_criterion(recovered_RGB, real_RGB)
+#
+#     # Total loss
+#     total_loss_Generate = loss_TIR_Generate + loss_RGB_Generate
+#     total_loss_cycle = loss_cycle_ABA + loss_cycle_BAB
+#     total_loss_vgg = loss_vgg_TIR + loss_vgg_RGB
+#
+#     loss_G = total_loss_Generate + total_loss_cycle + total_loss_vgg
+#     loss_G.backward()
+#     optimizer_G.step()
 
 print("Finished Pre-Training")
 
@@ -285,26 +286,26 @@ for ep in range(opt.n_epochs):
         # GAN loss
         fake_RGB = netG_TIR_2_RGB(real_TIR)
         pred_fake = netD_RGB(fake_RGB)
-        loss_GAN_TIR_2_RGB = criterion_MSE(pred_fake[0, :], target_real) * 1.4
+        loss_GAN_TIR_2_RGB = criterion_MSE(pred_fake[0, :], target_real)
         Gan_loss.append(loss_GAN_TIR_2_RGB.item())
 
 
         fake_TIR = netG_RGB_2_TIR(real_RGB)
         pred_fake = netD_TIR(fake_TIR)
-        loss_GAN_RGB_2_TIR = criterion_MSE(pred_fake[0, :], target_real) * 1.3
+        loss_GAN_RGB_2_TIR = criterion_MSE(pred_fake[0, :], target_real)
 
         # Fake vs. Real Loss
-        loss_TIR_Generate = criterion_L1(fake_TIR, real_TIR) * 1.8
-        loss_RGB_Generate = criterion_L1(fake_RGB, real_RGB) * 2.2
+        loss_TIR_Generate = criterion_L1(fake_TIR, real_TIR)
+        loss_RGB_Generate = criterion_L1(fake_RGB, real_RGB)
         Generate_loss.append(loss_RGB_Generate.item())
 
         # Cycle loss
         recovered_TIR = netG_RGB_2_TIR(fake_RGB)
         loss_cycle_ABA = criterion_L1(recovered_TIR, real_TIR)
-        Recovered_loss.append(loss_cycle_ABA.item())
 
         recovered_RGB = netG_TIR_2_RGB(fake_TIR)
         loss_cycle_BAB = criterion_L1(recovered_RGB, real_RGB)
+        Recovered_loss.append(loss_cycle_BAB.item())
 
 
         # SSIM loss
@@ -318,8 +319,8 @@ for ep in range(opt.n_epochs):
         # lpips_fake_loss.append(loss_lpips_fake.item())
 
         # VGG loss
-        loss_vgg_TIR = vgg19_criterion(recovered_TIR, real_TIR)
-        loss_vgg_RGB = vgg19_criterion(recovered_RGB, real_RGB)
+        loss_vgg_TIR = vgg19_criterion(recovered_TIR, real_TIR) * 5
+        loss_vgg_RGB = vgg19_criterion(recovered_RGB, real_RGB) * 5
         Vgg_loss.append(loss_vgg_RGB.item())
 
         # Total loss
@@ -403,6 +404,8 @@ for ep in range(opt.n_epochs):
     # mean_Ssim_loss.append(statistics.mean(Ssim_loss))
     # mean_Lpips_f_loss.append(statistics.mean(lpips_fake_loss))
     mean_Vgg_loss.append(statistics.mean(Vgg_loss))
+    if ep == 1:
+        break
 
 ###################################
 
@@ -424,16 +427,6 @@ plot.subplot(2, 2, 4)
 plot.plot(range(opt.n_epochs), mean_Vgg_loss)
 plot.title('Mean VGG Loss')
 
-plot.figure(2)
-plot.subplot(2, 2, 1)
-plot.plot(range(len(pred_fake_l)), pred_fake_l)
-plot.title('Pred Fake of TIR Dis')
-plot.subplot(2, 2, 2)
-plot.plot(range(len(pred_real_l)), pred_real_l)
-plot.title('Pred Real of TIR Dis')
-# plot.subplot(2, 2, 3)
-# plot.plot(range(len(mean_Lpips_f_loss)), mean_Lpips_f_loss)
-# plot.title('Mean LPIPS Fake Loss')
 plot.show()
 
 
