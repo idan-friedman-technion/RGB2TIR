@@ -10,14 +10,12 @@ import shutil
 from os import path
 import pathlib
 
-
 ################################################################
 
 import argparse
 import itertools
 import statistics
 from PIL import Image
-
 
 import torchvision
 import torchvision.transforms as transforms
@@ -49,7 +47,7 @@ sys.path.append(str(main_dir))
 
 # default starting vals for train
 train_arguments = {
-    "epoch": 0, #starting epoch
+    "epoch": 0,  # starting epoch
     "n_epochs": 50,
     "batchSize": 1,
     "lr": 0.005,
@@ -67,12 +65,10 @@ train_arguments = {
 }
 
 
-
-
 class Full_net_obj():
     def __init__(self, opt, n_epochs=0, batchSize=0):
-        self.opt       = opt
-        self.n_epochs  = n_epochs if (n_epochs != 0) else opt.n_epochs
+        self.opt = opt
+        self.n_epochs = n_epochs if (n_epochs != 0) else opt.n_epochs
         self.batchSize = batchSize if (batchSize != 0) else opt.batchSize
 
         if torch.cuda.is_available() and not self.opt.cuda:
@@ -85,7 +81,8 @@ class Full_net_obj():
         ###### Definition of variables ######
         # Networks
         # vgg19_critertion = torchvision.models.vgg19_bn(pretrained=True)
-        self.vgg19_criterion = PerceptualLoss(features_to_compute=['conv5_4'], criterion=torch.nn.L1Loss(), shave_edge=None)
+        self.vgg19_criterion = PerceptualLoss(features_to_compute=['conv5_4'], criterion=torch.nn.L1Loss(),
+                                              shave_edge=None)
         # self.criterion_lpips = lpips.LPIPS(net='alex', version=0.1)
 
         self.netG_TIR_2_RGB = Generator(self.opt.input_nc, self.opt.output_nc, input_type="TIR")
@@ -101,12 +98,9 @@ class Full_net_obj():
             self.netD_TIR.cuda()
             self.netD_RGB.cuda()
 
-
         # Lossess
         self.criterion_MSE = torch.nn.MSELoss()
         self.criterion_L1 = torch.nn.L1Loss()
-
-
 
         # Inputs & targets memory allocation
         Tensor = torch.cuda.FloatTensor if self.opt.cuda else torch.Tensor
@@ -120,16 +114,15 @@ class Full_net_obj():
 
         # Dataset loader
         self.TIR_transforms_ = [transforms.RandomHorizontalFlip(),
-                           transforms.ToTensor(),
-                           transforms.Normalize((0.5,), (0.5,))]
+                                transforms.ToTensor(),
+                                transforms.Normalize((0.5,), (0.5,))]
         self.RGB_transforms_ = [transforms.RandomHorizontalFlip(),
-                           transforms.ToTensor(),
-                           transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-
-
+                                transforms.ToTensor(),
+                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
     def initialize_nets(self, create_new_net=True):
-        if os.path.exists(os.path.join(main_dir, self.opt.generator_TIR_2_RGB)) and not create_new_net:  # load pre trained networks
+        if os.path.exists(os.path.join(main_dir,
+                                       self.opt.generator_TIR_2_RGB)) and not create_new_net:  # load pre trained networks
             print("Loading exists nets...")
             self.netG_TIR_2_RGB.load_state_dict(torch.load(os.path.join(main_dir, self.opt.generator_TIR_2_RGB)))
             self.netG_RGB_2_TIR.load_state_dict(torch.load(os.path.join(main_dir, self.opt.generator_RGB_2_TIR)))
@@ -141,8 +134,6 @@ class Full_net_obj():
             self.netG_RGB_2_TIR.apply(weights_init_normal)
             self.netD_TIR.apply(weights_init_normal)
             self.netD_RGB.apply(weights_init_normal)
-
-
 
     def initialize_optimizers(self, lr=0):
         # Optimizers & LR schedulers
@@ -165,7 +156,6 @@ class Full_net_obj():
         #                                                             lr_lambda=LambdaLR(self.opt.n_epochs,
         #                                                                                self.opt.epoch,
         #                                                                                self.opt.decay_epoch).step)
-
 
     def discriminators_train(self, real_TIR, real_RGB):
         ###### Discriminator TIR ######
@@ -208,33 +198,30 @@ class Full_net_obj():
         self.optimizer_D_RGB.step()
         ###################################
 
-
-    def generators_train(self, real_TIR, real_RGB, pre_train=False, vgg_w=1):
+    def generators_train(self, real_TIR, real_RGB, pre_train=False, vgg_w=1, gan_w=1, generate_w=1, cycle_w=1):
         ###### Generators TIR_2_RGB and RGB_2_TIR ######
         self.optimizer_G.zero_grad()
 
         # GAN loss
         pred_fake = self.netD_RGB(self.fake_RGB)
-        loss_GAN_TIR_2_RGB = self.criterion_MSE(pred_fake[0, :], self.target_real)
+        loss_GAN_TIR_2_RGB = self.criterion_MSE(pred_fake[0, :], self.target_real) * gan_w
         # Gan_loss.append(loss_GAN_TIR_2_RGB.item())
 
         pred_fake = self.netD_TIR(self.fake_TIR)
-        loss_GAN_RGB_2_TIR = self.criterion_MSE(pred_fake[0, :], self.target_real)
+        loss_GAN_RGB_2_TIR = self.criterion_MSE(pred_fake[0, :], self.target_real) * gan_w
 
         # Fake vs. Real Loss
-        loss_TIR_Generate = self.criterion_L1(self.fake_TIR, real_TIR)
-        loss_RGB_Generate = self.criterion_L1(self.fake_RGB, real_RGB)
+        loss_TIR_Generate = self.criterion_L1(self.fake_TIR, real_TIR) * generate_w
+        loss_RGB_Generate = self.criterion_L1(self.fake_RGB, real_RGB) * generate_w
         # Generate_loss.append(loss_RGB_Generate.item())
 
         # Cycle loss
         recovered_TIR = self.netG_RGB_2_TIR(self.fake_RGB)
-        loss_cycle_ABA = self.criterion_L1(recovered_TIR, real_TIR)
+        loss_cycle_ABA = self.criterion_L1(recovered_TIR, real_TIR) * cycle_w
 
         recovered_RGB = self.netG_TIR_2_RGB(self.fake_TIR)
-        loss_cycle_BAB = self.criterion_L1(recovered_RGB, real_RGB)
+        loss_cycle_BAB = self.criterion_L1(recovered_RGB, real_RGB) * cycle_w
         # Recovered_loss.append(loss_cycle_BAB.item())
-
-
 
         # VGG loss
         loss_vgg_TIR = self.vgg19_criterion(recovered_TIR, real_TIR) * vgg_w
@@ -247,7 +234,6 @@ class Full_net_obj():
         total_loss_cycle = loss_cycle_ABA + loss_cycle_BAB
         total_loss_vgg = loss_vgg_TIR + loss_vgg_RGB
 
-
         loss_G = total_loss_Generate + total_loss_cycle + total_loss_vgg
         if not pre_train:
             loss_G += total_loss_GAN
@@ -256,8 +242,7 @@ class Full_net_obj():
 
         self.optimizer_G.step()
 
-
-    def train(self, pre_train=False, vgg_w=1):
+    def train(self, pre_train=False, vgg_w=1, gan_w=1, generate_w=1, cycle_w=1):
         dataloader = DataLoader(
             ImageDataset(TIR_transforms_=self.TIR_transforms_, RGB_transforms_=self.RGB_transforms_, unaligned=True),
             batch_size=self.batchSize, shuffle=True, num_workers=0)
@@ -272,9 +257,9 @@ class Full_net_obj():
             print(f"Starting train. {n_epochs} epoches will be ran, {len(dataloader)} files for each epoch\n")
 
         for ep in range(n_epochs):
-            print(f"\r\repoch number {ep + 1}/{n_epochs} - {(ep + 1) * 100 /n_epochs}%\n")
-            #print(f"\nepoch number: {ep+1} out of {n_epochs}\n")
-            for i, batch in tqdm.tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
+            print(f"\r\repoch number {ep + 1}/{n_epochs} - {(ep + 1) * 100 / n_epochs}%\n")
+            # print(f"\nepoch number: {ep+1} out of {n_epochs}\n")
+            for i, batch in enumerate(dataloader):
                 if pre_train and i == 100:
                     break
                 item_RGB = batch['RGB'][:, :, 113:1393, 33:993]
@@ -284,7 +269,7 @@ class Full_net_obj():
 
                 self.fake_RGB = self.netG_TIR_2_RGB(real_TIR)
                 self.fake_TIR = self.netG_RGB_2_TIR(real_RGB)
-                self.generators_train(real_TIR, real_RGB, pre_train=pre_train, vgg_w=vgg_w)
+                self.generators_train(real_TIR, real_RGB, pre_train=pre_train, vgg_w=vgg_w, gan_w=gan_w, generate_w=generate_w, cycle_w=cycle_w)
                 self.discriminators_train(real_TIR, real_RGB)
 
             # Save models checkpoints
@@ -298,8 +283,6 @@ class Full_net_obj():
         else:
             print(f"finished main Training")
         return
-
-
 
     def test(self, TIRtoRGB_dir="TIRtoRGB", RGBtoTIR_dir="RGBtoTIR"):
         self.netG_TIR_2_RGB.eval()
@@ -317,16 +300,16 @@ class Full_net_obj():
             shutil.rmtree(os.path.join(main_dir, f"RGB2TIR/output/{TIRtoRGB_dir}"))
         os.makedirs(os.path.join(main_dir, f"RGB2TIR/output/{TIRtoRGB_dir}"))
 
-        Gan_loss      = []
+        Gan_loss = []
         Generate_loss = []
-        Vgg_loss      = []
+        Vgg_loss = []
 
         print('#########################################')
         print('test')
         print('====')
         print(f"Starting test. {len(dataloader)} files to test")
 
-        for i, batch in enumerate(tqdm.tqdm(dataloader, total=len(dataloader), leave=False)):
+        for i, batch in enumerate(dataloader):
             if i % 5 != 0:
                 continue
             # Set model input
@@ -367,65 +350,96 @@ class Full_net_obj():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epoch', type=int, default=0,          help='starting epoch')
-    parser.add_argument('--n_epochs', type=int, default=20,      help='number of epochs of training')
-    parser.add_argument('--batchSize', type=int, default=1,      help='size of the batches')
-    parser.add_argument('--lr', type=float, default=0.005,       help='initial learning rate')
-    parser.add_argument('--decay_epoch', type=int, default=10,   help='epoch to start linearly decaying the learning rate to 0')
-    parser.add_argument('--size', type=int, default=256,         help='size of the data crop (squared assumed)')
-    parser.add_argument('--TIR_w', type=int, default=640,        help='size of the data TIR width (squared assumed)')
-    parser.add_argument('--TIR_h', type=int, default=480,        help='size of the data crop (squared assumed)')
-    parser.add_argument('--RGB_w', type=int, default=1280,       help='size of the data TIR width (squared assumed)')
-    parser.add_argument('--RGB_h', type=int, default=960,        help='size of the data crop (squared assumed)')
-    parser.add_argument('--input_nc', type=int, default=1,       help='number of channels of input data')
-    parser.add_argument('--output_nc', type=int, default=3,      help='number of channels of output data')
-    parser.add_argument('--cuda', action='store_true',           help='use GPU computation')
-    parser.add_argument('--n_cpu', type=int, default=8,          help='number of cpu threads to use during batch generation')
-    parser.add_argument('--sd', action='store_true',             help='shuffle data for test and train')
-    parser.add_argument('--nr', action='store_true',             help='don\'t run the network')
-    parser.add_argument('--create_new_net', action='store_true', help='create new network, and don\'t work with old one')
-    parser.add_argument('--generator_TIR_2_RGB', type=str, default='RGB2TIR/output/p_netG_TIR_2_RGB.pth', help='TIR_2_RGB generator checkpoint file')
-    parser.add_argument('--generator_RGB_2_TIR', type=str, default='RGB2TIR/output/p_netG_RGB_2_TIR.pth', help='RGB_2_TIR generator checkpoint file')
-    parser.add_argument('--discriminator_TIR', type=str, default='RGB2TIR/output/p_netD_TIR.pth',         help='TIR discriminator checkpoint file')
-    parser.add_argument('--discriminator_RGB', type=str, default='RGB2TIR/output/p_netD_RGB.pth',         help='RGB discriminator checkpoint file')
+    parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
+    parser.add_argument('--n_epochs', type=int, default=25, help='number of epochs of training')
+    parser.add_argument('--batchSize', type=int, default=1, help='size of the batches')
+    parser.add_argument('--lr', type=float, default=0.005, help='initial learning rate')
+    parser.add_argument('--decay_epoch', type=int, default=10,
+                        help='epoch to start linearly decaying the learning rate to 0')
+    parser.add_argument('--size', type=int, default=256, help='size of the data crop (squared assumed)')
+    parser.add_argument('--TIR_w', type=int, default=640, help='size of the data TIR width (squared assumed)')
+    parser.add_argument('--TIR_h', type=int, default=480, help='size of the data crop (squared assumed)')
+    parser.add_argument('--RGB_w', type=int, default=1280, help='size of the data TIR width (squared assumed)')
+    parser.add_argument('--RGB_h', type=int, default=960, help='size of the data crop (squared assumed)')
+    parser.add_argument('--input_nc', type=int, default=1, help='number of channels of input data')
+    parser.add_argument('--output_nc', type=int, default=3, help='number of channels of output data')
+    parser.add_argument('--cuda', action='store_true', help='use GPU computation')
+    parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
+    parser.add_argument('--sd', action='store_true', help='shuffle data for test and train')
+    parser.add_argument('--nr', action='store_true', help='don\'t run the network')
+    parser.add_argument('--create_new_net', action='store_true',
+                        help='create new network, and don\'t work with old one')
+    parser.add_argument('--generator_TIR_2_RGB', type=str, default='RGB2TIR/output/p_netG_TIR_2_RGB.pth',
+                        help='TIR_2_RGB generator checkpoint file')
+    parser.add_argument('--generator_RGB_2_TIR', type=str, default='RGB2TIR/output/p_netG_RGB_2_TIR.pth',
+                        help='RGB_2_TIR generator checkpoint file')
+    parser.add_argument('--discriminator_TIR', type=str, default='RGB2TIR/output/p_netD_TIR.pth',
+                        help='TIR discriminator checkpoint file')
+    parser.add_argument('--discriminator_RGB', type=str, default='RGB2TIR/output/p_netD_RGB.pth',
+                        help='RGB discriminator checkpoint file')
     opt = parser.parse_args()
     print(opt)
 
-    # TIR_2_RGB_net = Full_net_obj(opt)
-    # TIR_2_RGB_net.initialize_nets(opt.create_new_net)
-    # TIR_2_RGB_net.initialize_optimizers()
-    # TIR_2_RGB_net.train(pre_train=True)
-    # TIR_2_RGB_net.train(pre_train=False)
-    # Vgg, Generate, Gan = TIR_2_RGB_net.test()
-    # print(f"vgg loss            - {Vgg}")
-    # print(f"L1 RGB compare loss - {Generate}")
-    # print(f"discriminator loss  - {Gan}")
+    lr_vgg_vgg_loss = np.zeros((25, 3))
+    lr_vgg_gan_loss = np.zeros((25, 3))
+    lr_vgg_generate_loss = np.zeros((25, 3))
+    for i in range(25):
+        lr = np.round(np.random.uniform(low=0.0001, high=0.002), 5)
+        vgg_w = np.round(np.random.uniform(low=2.5, high=7.5), 1)
+        print(f"starting loop with: lr = {lr} and vgg_w = {vgg_w}")
+        TIR_2_RGB_net = Full_net_obj(opt)
+        TIR_2_RGB_net.initialize_nets(opt.create_new_net)
+        TIR_2_RGB_net.initialize_optimizers(lr=lr)
+        TIR_2_RGB_net.train(pre_train=True, vgg_w=vgg_w)
+        TIR_2_RGB_net.train(pre_train=False, vgg_w=vgg_w)
+        Vgg, Generate, Gan = TIR_2_RGB_net.test(TIRtoRGB_dir=f"TIR_2_RGB_lr_{lr}_vgg_w_{vgg_w}",
+                                                RGBtoTIR_dir=f"RGB_2_TIR_lr_{lr}_vgg_w_{vgg_w}")
+        lr_vgg_vgg_loss[i, :] = lr, vgg_w, Vgg
+        lr_vgg_gan_loss[i, :] = lr, vgg_w, Gan
+        lr_vgg_generate_loss[i, :] = lr, vgg_w, Generate
 
-    Vgg_loss = np.zeros((3, 4))
-    Generate_loss = np.zeros((3, 4))
-    Gan_loss = np.zeros((3, 4))
+    # sort by vals
+    lr_vgg_vgg_loss = lr_vgg_vgg_loss[lr_vgg_vgg_loss[:, 2].argsort()]
+    lr_vgg_gan_loss = lr_vgg_gan_loss[lr_vgg_gan_loss[:, 2].argsort()]
+    lr_vgg_generate_loss = lr_vgg_generate_loss[lr_vgg_generate_loss[:, 2].argsort()]
 
-    for i, lr in enumerate([0.001, 0.005, 0.02]):
-        for j, vgg_w in enumerate([1, 2, 5, 10]):
-            TIR_2_RGB_net = Full_net_obj(opt)
-            TIR_2_RGB_net.initialize_nets(opt.create_new_net)
-            TIR_2_RGB_net.initialize_optimizers(lr=lr)
-            TIR_2_RGB_net.train(pre_train=True, vgg_w=vgg_w)
-            TIR_2_RGB_net.train(pre_train=False, vgg_w=vgg_w)
-            Vgg, Generate, Gan = TIR_2_RGB_net.test(TIRtoRGB_dir=f"TIR_2_RGB_{lr}_{vgg_w}", RGBtoTIR_dir=f"RGB_2_TIR_{lr}_{vgg_w}")
-
-            Vgg_loss[i, j]      = Vgg
-            Generate_loss[i, j] = Generate
-            Gan_loss[i, j]      = Gan
+    # put in csv
+    np.savetxt('lr_vs_vggw_Vgg_loss.csv', lr_vgg_vgg_loss, delimiter="\t")
+    np.savetxt('lr_vs_vggw_Generate_loss.csv', lr_vgg_generate_loss, delimiter="\t")
+    np.savetxt('lr_vs_vggw_Gan_loss.csv', lr_vgg_gan_loss, delimiter="\t")
 
 
-    np.savetxt('Vgg_loss.csv', Vgg_loss, delimiter="\t")
-    np.savetxt('Generate_loss.csv', Generate_loss, delimiter="\t")
-    np.savetxt('Gan_loss.csv', Gan_loss, delimiter="\t")
+    ganw_vs_genw_vs_cyclew_vgg_loss = np.zeros((25, 4))
+    ganw_vs_genw_vs_cyclew_gan_loss = np.zeros((25, 4))
+    ganw_vs_genw_vs_cyclew_generate_loss = np.zeros((25, 4))
+    lr = 0.001
+    for i in range(25):
+        gan_w = np.round(np.random.uniform(low=1, high=8), 1)
+        generate_w = np.round(np.random.uniform(low=1, high=8), 1)
+        cycle_w = np.round(np.random.uniform(low=1, high=8), 1)
+        print(f"starting loop with: gan_w = {gan_w} and generate_w = {generate_w} and cycle_w = {cycle_w}")
+        TIR_2_RGB_net = Full_net_obj(opt)
+        TIR_2_RGB_net.initialize_nets(opt.create_new_net)
+        TIR_2_RGB_net.initialize_optimizers(lr=lr)
+        TIR_2_RGB_net.train(pre_train=True, gan_w=gan_w, generate_w=generate_w, cycle_w=cycle_w)
+        TIR_2_RGB_net.train(pre_train=False, gan_w=gan_w, generate_w=generate_w, cycle_w=cycle_w)
+        Vgg, Generate, Gan = TIR_2_RGB_net.test(TIRtoRGB_dir=f"TIR_2_RGB_gan_w_{gan_w}_generate_w_{generate_w}_cycle_w_{cycle_w}",
+                                                RGBtoTIR_dir=f"RGB_2_TIR_gan_w_{gan_w}_generate_w_{generate_w}_cycle_w_{cycle_w}")
+        ganw_vs_genw_vs_cyclew_vgg_loss[i, :] = gan_w, generate_w, cycle_w, Vgg
+        ganw_vs_genw_vs_cyclew_gan_loss[i, :] = gan_w, generate_w, cycle_w, Gan
+        ganw_vs_genw_vs_cyclew_generate_loss[i, :] = gan_w, generate_w, cycle_w, Generate
+
+    # sort by vals
+    ganw_vs_genw_vs_cyclew_vgg_loss = ganw_vs_genw_vs_cyclew_vgg_loss[ganw_vs_genw_vs_cyclew_vgg_loss[:, 3].argsort()]
+    ganw_vs_genw_vs_cyclew_gan_loss = ganw_vs_genw_vs_cyclew_gan_loss[ganw_vs_genw_vs_cyclew_gan_loss[:, 3].argsort()]
+    ganw_vs_genw_vs_cyclew_generate_loss = ganw_vs_genw_vs_cyclew_generate_loss[ganw_vs_genw_vs_cyclew_generate_loss[:, 3].argsort()]
+
+    # put in csv
+    np.savetxt('ganw_vs_genw_vs_cyclew_Vgg_loss.csv', ganw_vs_genw_vs_cyclew_vgg_loss, delimiter="\t")
+    np.savetxt('ganw_vs_genw_vs_cyclew_Generate_loss.csv', ganw_vs_genw_vs_cyclew_generate_loss, delimiter="\t")
+    np.savetxt('ganw_vs_genw_vs_cyclew_Gan_loss.csv', ganw_vs_genw_vs_cyclew_gan_loss, delimiter="\t")
+
 
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
-
-#change to class train and class test with arguments and then we can create objects as we want
-
