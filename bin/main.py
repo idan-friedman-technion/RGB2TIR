@@ -113,12 +113,16 @@ class Full_net_obj():
         self.fake_RGB_buffer = ReplayBuffer()
 
         # Dataset loader
-        self.TIR_transforms_ = [transforms.RandomHorizontalFlip(),
+        self.train_TIR_transforms_ = [transforms.RandomHorizontalFlip(),
                                 transforms.ToTensor(),
                                 transforms.Normalize((0.5,), (0.5,))]
-        self.RGB_transforms_ = [transforms.RandomHorizontalFlip(),
+        self.train_RGB_transforms_ = [transforms.RandomHorizontalFlip(),
                                 transforms.ToTensor(),
                                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+
+        self.test_TIR_transforms_ = [transforms.ToTensor()]
+        self.test_RGB_transforms_ = [transforms.ToTensor()]
+
 
     def initialize_nets(self, create_new_net=True):
         if os.path.exists(os.path.join(main_dir,
@@ -211,8 +215,8 @@ class Full_net_obj():
         loss_GAN_RGB_2_TIR = self.criterion_MSE(pred_fake[0, :], self.target_real) * gan_w
 
         # Fake vs. Real Loss
-        loss_TIR_Generate = self.criterion_L1(self.fake_TIR, real_TIR) * generate_w
-        loss_RGB_Generate = self.criterion_L1(self.fake_RGB, real_RGB) * generate_w
+        # loss_TIR_Generate = self.criterion_L1(self.fake_TIR, real_TIR) * generate_w
+        # loss_RGB_Generate = self.criterion_L1(self.fake_RGB, real_RGB) * generate_w
         # Generate_loss.append(loss_RGB_Generate.item())
 
         # Cycle loss
@@ -230,11 +234,11 @@ class Full_net_obj():
 
         # Total loss
         total_loss_GAN = loss_GAN_TIR_2_RGB + loss_GAN_RGB_2_TIR
-        total_loss_Generate = loss_TIR_Generate + loss_RGB_Generate
+        # total_loss_Generate = loss_TIR_Generate + loss_RGB_Generate
         total_loss_cycle = loss_cycle_ABA + loss_cycle_BAB
         total_loss_vgg = loss_vgg_TIR + loss_vgg_RGB
 
-        loss_G = total_loss_Generate + total_loss_cycle + total_loss_vgg
+        loss_G = total_loss_cycle + total_loss_vgg
         if not pre_train:
             loss_G += total_loss_GAN
 
@@ -242,9 +246,9 @@ class Full_net_obj():
 
         self.optimizer_G.step()
 
-    def train(self, pre_train=False, vgg_w=1, gan_w=1, generate_w=1, cycle_w=1):
+    def train(self, pre_train=False, vgg_w=40, gan_w=1, generate_w=1, cycle_w=1):
         dataloader = DataLoader(
-            ImageDataset(TIR_transforms_=self.TIR_transforms_, RGB_transforms_=self.RGB_transforms_, unaligned=True),
+            ImageDataset(TIR_transforms_=self.test_TIR_transforms_, RGB_transforms_=self.test_RGB_transforms_, unaligned=True),
             batch_size=self.batchSize, shuffle=True, num_workers=0)
 
         n_epochs = 1 if (pre_train) else self.opt.n_epochs
@@ -257,20 +261,27 @@ class Full_net_obj():
             print(f"Starting train. {n_epochs} epoches will be ran, {len(dataloader)} files for each epoch\n")
 
         for ep in range(n_epochs):
-            print(f"\r\repoch number {ep + 1}/{n_epochs} - {(ep + 1) * 100 / n_epochs}%\n")
+            #print(f"\r\repoch number {ep + 1}/{n_epochs} - {(ep + 1) * 100 / n_epochs}%\n")
             # print(f"\nepoch number: {ep+1} out of {n_epochs}\n")
             for i, batch in enumerate(dataloader):
                 if pre_train and i == 100:
                     break
-                item_RGB = batch['RGB'][:, :, 113:1393, 33:993]
+                # item_RGB = batch['RGB'][:, :, 113:1393, 33:993]
+                # item_RGB = item_RGB[:,280:1000, 210:750]
+                item_RGB = batch['RGB']
 
-                real_TIR = Variable(self.input_TIR.copy_(batch['TIR'][0, :, :, :]))
-                real_RGB = Variable(self.input_RGB.copy_(item_RGB[0, :, :, :]))
+                for i in [0, 1]:
+                    for j in [0, 1]:
+                        Q_TIR = batch['TIR'][0, :, i*320:(i+1)*320, j*240:(j+1)*240]
+                        Q_RGB = item_RGB[0, :, i*360:(i+1)*360, j*272:(j+1)*272 ]
+                        real_TIR = Variable(self.input_TIR.copy_(Q_TIR[:, :, :]))
+                        real_RGB = Variable(self.input_RGB.copy_(Q_RGB[:, :, :]))
 
-                self.fake_RGB = self.netG_TIR_2_RGB(real_TIR)
-                self.fake_TIR = self.netG_RGB_2_TIR(real_RGB)
-                self.generators_train(real_TIR, real_RGB, pre_train=pre_train, vgg_w=vgg_w, gan_w=gan_w, generate_w=generate_w, cycle_w=cycle_w)
-                self.discriminators_train(real_TIR, real_RGB)
+
+                        self.fake_RGB = self.netG_TIR_2_RGB(real_TIR)
+                        self.fake_TIR = self.netG_RGB_2_TIR(real_RGB)
+                        self.generators_train(real_TIR, real_RGB, pre_train=pre_train, vgg_w=vgg_w, gan_w=gan_w, generate_w=generate_w, cycle_w=cycle_w)
+                        self.discriminators_train(real_TIR, real_RGB)
 
             # Save models checkpoints
             torch.save(self.netG_TIR_2_RGB.state_dict(), os.path.join(main_dir, 'RGB2TIR/output/p_netG_TIR_2_RGB.pth'))
@@ -289,7 +300,7 @@ class Full_net_obj():
         self.netG_RGB_2_TIR.eval()
         self.netD_RGB.eval()
         dataloader = DataLoader(
-            ImageDataset(TIR_transforms_=self.TIR_transforms_, RGB_transforms_=self.TIR_transforms_, mode='test',
+            ImageDataset(TIR_transforms_=self.test_TIR_transforms_, RGB_transforms_=self.test_TIR_transforms_, mode='test',
                          unaligned=True), batch_size=self.batchSize, shuffle=True, num_workers=0)
 
         # Create output dirs if they don't exist
@@ -304,9 +315,9 @@ class Full_net_obj():
         Generate_loss = []
         Vgg_loss = []
 
-        print('#########################################')
-        print('test')
-        print('====')
+        # print('#########################################')
+        #print('test')
+        #print('====')
         print(f"Starting test. {len(dataloader)} files to test")
 
         for i, batch in enumerate(dataloader):
@@ -351,16 +362,16 @@ class Full_net_obj():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--epoch', type=int, default=0, help='starting epoch')
-    parser.add_argument('--n_epochs', type=int, default=25, help='number of epochs of training')
+    parser.add_argument('--n_epochs', type=int, default=10, help='number of epochs of training')
     parser.add_argument('--batchSize', type=int, default=1, help='size of the batches')
     parser.add_argument('--lr', type=float, default=0.005, help='initial learning rate')
     parser.add_argument('--decay_epoch', type=int, default=10,
                         help='epoch to start linearly decaying the learning rate to 0')
     parser.add_argument('--size', type=int, default=256, help='size of the data crop (squared assumed)')
-    parser.add_argument('--TIR_w', type=int, default=640, help='size of the data TIR width (squared assumed)')
-    parser.add_argument('--TIR_h', type=int, default=480, help='size of the data crop (squared assumed)')
-    parser.add_argument('--RGB_w', type=int, default=1280, help='size of the data TIR width (squared assumed)')
-    parser.add_argument('--RGB_h', type=int, default=960, help='size of the data crop (squared assumed)')
+    parser.add_argument('--TIR_w', type=int, default=320, help='size of the data TIR width (squared assumed)')
+    parser.add_argument('--TIR_h', type=int, default=240, help='size of the data crop (squared assumed)')
+    parser.add_argument('--RGB_w', type=int, default=360, help='size of the data TIR width (squared assumed)')
+    parser.add_argument('--RGB_h', type=int, default=272, help='size of the data crop (squared assumed)')
     parser.add_argument('--input_nc', type=int, default=1, help='number of channels of input data')
     parser.add_argument('--output_nc', type=int, default=3, help='number of channels of output data')
     parser.add_argument('--cuda', action='store_true', help='use GPU computation')
@@ -380,64 +391,107 @@ if __name__ == '__main__':
     opt = parser.parse_args()
     print(opt)
 
-    lr_vgg_vgg_loss = np.zeros((25, 3))
-    lr_vgg_gan_loss = np.zeros((25, 3))
-    lr_vgg_generate_loss = np.zeros((25, 3))
-    for i in range(25):
-        lr = np.round(np.random.uniform(low=0.0001, high=0.002), 5)
-        vgg_w = np.round(np.random.uniform(low=2.5, high=7.5), 1)
-        print(f"starting loop with: lr = {lr} and vgg_w = {vgg_w}")
-        TIR_2_RGB_net = Full_net_obj(opt)
-        TIR_2_RGB_net.initialize_nets(opt.create_new_net)
-        TIR_2_RGB_net.initialize_optimizers(lr=lr)
-        TIR_2_RGB_net.train(pre_train=True, vgg_w=vgg_w)
-        TIR_2_RGB_net.train(pre_train=False, vgg_w=vgg_w)
-        Vgg, Generate, Gan = TIR_2_RGB_net.test(TIRtoRGB_dir=f"TIR_2_RGB_lr_{lr}_vgg_w_{vgg_w}",
-                                                RGBtoTIR_dir=f"RGB_2_TIR_lr_{lr}_vgg_w_{vgg_w}")
-        lr_vgg_vgg_loss[i, :] = lr, vgg_w, Vgg
-        lr_vgg_gan_loss[i, :] = lr, vgg_w, Gan
-        lr_vgg_generate_loss[i, :] = lr, vgg_w, Generate
+    # TIR_2_RGB_net = Full_net_obj(opt)
+    # TIR_2_RGB_net.initialize_nets(create_new_net=False)
+    # Vgg, Generate, Gan = TIR_2_RGB_net.test(TIRtoRGB_dir=f"final_TIR_2_RGB_2",
+    #                                         RGBtoTIR_dir=f"final_RGB_2_TIR_2")
 
-    # sort by vals
-    lr_vgg_vgg_loss = lr_vgg_vgg_loss[lr_vgg_vgg_loss[:, 2].argsort()]
-    lr_vgg_gan_loss = lr_vgg_gan_loss[lr_vgg_gan_loss[:, 2].argsort()]
-    lr_vgg_generate_loss = lr_vgg_generate_loss[lr_vgg_generate_loss[:, 2].argsort()]
+    lr = 0.0017
+    vgg_w, generate_w, gan_w, cycle_w = 10, 0, 7, 3
 
-    # put in csv
-    np.savetxt('lr_vs_vggw_Vgg_loss.csv', lr_vgg_vgg_loss, delimiter="\t")
-    np.savetxt('lr_vs_vggw_Generate_loss.csv', lr_vgg_generate_loss, delimiter="\t")
-    np.savetxt('lr_vs_vggw_Gan_loss.csv', lr_vgg_gan_loss, delimiter="\t")
+    TIR_2_RGB_net = Full_net_obj(opt)
+    TIR_2_RGB_net.initialize_nets(opt.create_new_net)
+    TIR_2_RGB_net.initialize_optimizers(lr=lr)
+    TIR_2_RGB_net.train(pre_train=True, gan_w=gan_w, generate_w=generate_w, cycle_w=cycle_w, vgg_w=vgg_w)
+
+    Vgg = []
+    Generate = []
+    Gan = []
+    for i in range(12):
+        print(f"Starting loop number {i+1}")
+        TIR_2_RGB_net.train(pre_train=False, gan_w=gan_w, generate_w=generate_w, cycle_w=cycle_w, vgg_w=vgg_w)
+
+        Vgg_l, Generate_l, Gan_l = TIR_2_RGB_net.test(TIRtoRGB_dir=f"new_e_{i}_TIR_2_RGB",
+                                                    RGBtoTIR_dir=f"new_e_{i}_RGB_2_TIR")
+        Vgg.append(Vgg_l)
+        Generate.append(Generate_l)
+        Gan.append(Gan_l)
+
+    print(f"\nVGG Loss -\n{Vgg}")
+    print(f"\nGenerate Loss -\n{Generate}")
+    print(f"\nGan Loss -\n{Gan}")
 
 
-    ganw_vs_genw_vs_cyclew_vgg_loss = np.zeros((25, 4))
-    ganw_vs_genw_vs_cyclew_gan_loss = np.zeros((25, 4))
-    ganw_vs_genw_vs_cyclew_generate_loss = np.zeros((25, 4))
-    lr = 0.001
-    for i in range(25):
-        gan_w = np.round(np.random.uniform(low=1, high=8), 1)
-        generate_w = np.round(np.random.uniform(low=1, high=8), 1)
-        cycle_w = np.round(np.random.uniform(low=1, high=8), 1)
-        print(f"starting loop with: gan_w = {gan_w} and generate_w = {generate_w} and cycle_w = {cycle_w}")
-        TIR_2_RGB_net = Full_net_obj(opt)
-        TIR_2_RGB_net.initialize_nets(opt.create_new_net)
-        TIR_2_RGB_net.initialize_optimizers(lr=lr)
-        TIR_2_RGB_net.train(pre_train=True, gan_w=gan_w, generate_w=generate_w, cycle_w=cycle_w)
-        TIR_2_RGB_net.train(pre_train=False, gan_w=gan_w, generate_w=generate_w, cycle_w=cycle_w)
-        Vgg, Generate, Gan = TIR_2_RGB_net.test(TIRtoRGB_dir=f"TIR_2_RGB_gan_w_{gan_w}_generate_w_{generate_w}_cycle_w_{cycle_w}",
-                                                RGBtoTIR_dir=f"RGB_2_TIR_gan_w_{gan_w}_generate_w_{generate_w}_cycle_w_{cycle_w}")
-        ganw_vs_genw_vs_cyclew_vgg_loss[i, :] = gan_w, generate_w, cycle_w, Vgg
-        ganw_vs_genw_vs_cyclew_gan_loss[i, :] = gan_w, generate_w, cycle_w, Gan
-        ganw_vs_genw_vs_cyclew_generate_loss[i, :] = gan_w, generate_w, cycle_w, Generate
+    # plot.figure(1)
+    # plot.subplot(2, 2, 1)
+    # plot.plot(range(12), Vgg)
+    # plot.title('Mean Vgg Loss')
+    # plot.subplot(2, 2, 2)
+    # plot.plot(range(12), Generate)
+    # plot.title('Mean Generate Loss')
+    # plot.subplot(2, 2, 3)
+    # plot.plot(range(12), Gan)
+    # plot.title('Mean Gan Loss')
 
-    # sort by vals
-    ganw_vs_genw_vs_cyclew_vgg_loss = ganw_vs_genw_vs_cyclew_vgg_loss[ganw_vs_genw_vs_cyclew_vgg_loss[:, 3].argsort()]
-    ganw_vs_genw_vs_cyclew_gan_loss = ganw_vs_genw_vs_cyclew_gan_loss[ganw_vs_genw_vs_cyclew_gan_loss[:, 3].argsort()]
-    ganw_vs_genw_vs_cyclew_generate_loss = ganw_vs_genw_vs_cyclew_generate_loss[ganw_vs_genw_vs_cyclew_generate_loss[:, 3].argsort()]
 
-    # put in csv
-    np.savetxt('ganw_vs_genw_vs_cyclew_Vgg_loss.csv', ganw_vs_genw_vs_cyclew_vgg_loss, delimiter="\t")
-    np.savetxt('ganw_vs_genw_vs_cyclew_Generate_loss.csv', ganw_vs_genw_vs_cyclew_generate_loss, delimiter="\t")
-    np.savetxt('ganw_vs_genw_vs_cyclew_Gan_loss.csv', ganw_vs_genw_vs_cyclew_gan_loss, delimiter="\t")
+    # lr_vgg_vgg_loss = np.zeros((25, 3))
+    # lr_vgg_gan_loss = np.zeros((25, 3))
+    # lr_vgg_generate_loss = np.zeros((25, 3))
+    # for i in range(25):
+    #     lr = 1.7
+    #     vgg_w = np.round(np.random.uniform(low=2.5, high=7.5), 1)
+    #     print(f"starting loop with: lr = {lr} and vgg_w = {vgg_w}")
+    #     TIR_2_RGB_net = Full_net_obj(opt)
+    #     TIR_2_RGB_net.initialize_nets(opt.create_new_net)
+    #     TIR_2_RGB_net.initialize_optimizers(lr=lr)
+    #     TIR_2_RGB_net.train(pre_train=True, vgg_w=vgg_w)
+    #     TIR_2_RGB_net.train(pre_train=False, vgg_w=vgg_w)
+    #     Vgg, Generate, Gan = TIR_2_RGB_net.test(TIRtoRGB_dir=f"TIR_2_RGB_lr_{lr}_vgg_w_{vgg_w}",
+    #                                             RGBtoTIR_dir=f"RGB_2_TIR_lr_{lr}_vgg_w_{vgg_w}")
+    #     lr_vgg_vgg_loss[i, :] = lr, vgg_w, Vgg
+    #     lr_vgg_gan_loss[i, :] = lr, vgg_w, Gan
+    #     lr_vgg_generate_loss[i, :] = lr, vgg_w, Generate
+    #
+    # # sort by vals
+    # lr_vgg_vgg_loss = lr_vgg_vgg_loss[lr_vgg_vgg_loss[:, 2].argsort()]
+    # lr_vgg_gan_loss = lr_vgg_gan_loss[lr_vgg_gan_loss[:, 2].argsort()]
+    # lr_vgg_generate_loss = lr_vgg_generate_loss[lr_vgg_generate_loss[:, 2].argsort()]
+    #
+    # # put in csv
+    # np.savetxt('lr_vs_vggw_Vgg_loss.csv', lr_vgg_vgg_loss, delimiter="\t")
+    # np.savetxt('lr_vs_vggw_Generate_loss.csv', lr_vgg_generate_loss, delimiter="\t")
+    # np.savetxt('lr_vs_vggw_Gan_loss.csv', lr_vgg_gan_loss, delimiter="\t")
+
+
+    # ganw_vs_genw_vs_cyclew_vgg_loss = np.zeros((30, 4))
+    # ganw_vs_genw_vs_cyclew_gan_loss = np.zeros((30, 4))
+    # ganw_vs_genw_vs_cyclew_generate_loss = np.zeros((30, 4))
+    # lr = 0.0017
+    # for i in range(30):
+    #     gan_w = np.round(np.random.uniform(low=1, high=50), 1)
+    #     generate_w = np.round(np.random.uniform(low=1, high=50), 1)
+    #     cycle_w = np.round(np.random.uniform(low=1, high=50), 1)
+    #     print(f"starting loop with: gan_w = {gan_w} and generate_w = {generate_w} and cycle_w = {cycle_w}")
+    #     TIR_2_RGB_net = Full_net_obj(opt)
+    #     TIR_2_RGB_net.initialize_nets(opt.create_new_net)
+    #     TIR_2_RGB_net.initialize_optimizers(lr=lr)
+    #     TIR_2_RGB_net.train(pre_train=True, gan_w=gan_w, generate_w=generate_w, cycle_w=cycle_w)
+    #     TIR_2_RGB_net.train(pre_train=False, gan_w=gan_w, generate_w=generate_w, cycle_w=cycle_w)
+    #     Vgg, Generate, Gan = TIR_2_RGB_net.test(TIRtoRGB_dir=f"TIR_2_RGB_gan_w_{gan_w}_generate_w_{generate_w}_cycle_w_{cycle_w}",
+    #                                             RGBtoTIR_dir=f"RGB_2_TIR_gan_w_{gan_w}_generate_w_{generate_w}_cycle_w_{cycle_w}")
+    #     ganw_vs_genw_vs_cyclew_vgg_loss[i, :] = gan_w, generate_w, cycle_w, Vgg
+    #     ganw_vs_genw_vs_cyclew_gan_loss[i, :] = gan_w, generate_w, cycle_w, Gan
+    #     ganw_vs_genw_vs_cyclew_generate_loss[i, :] = gan_w, generate_w, cycle_w, Generate
+    #
+    # # sort by vals
+    # ganw_vs_genw_vs_cyclew_vgg_loss = ganw_vs_genw_vs_cyclew_vgg_loss[ganw_vs_genw_vs_cyclew_vgg_loss[:, 3].argsort()]
+    # ganw_vs_genw_vs_cyclew_gan_loss = ganw_vs_genw_vs_cyclew_gan_loss[ganw_vs_genw_vs_cyclew_gan_loss[:, 3].argsort()]
+    # ganw_vs_genw_vs_cyclew_generate_loss = ganw_vs_genw_vs_cyclew_generate_loss[ganw_vs_genw_vs_cyclew_generate_loss[:, 3].argsort()]
+    #
+    # # put in csv
+    # np.savetxt('ganw_vs_genw_vs_cyclew_Vgg_loss_2.csv', ganw_vs_genw_vs_cyclew_vgg_loss, delimiter="\t")
+    # np.savetxt('ganw_vs_genw_vs_cyclew_Generate_loss_2.csv', ganw_vs_genw_vs_cyclew_generate_loss, delimiter="\t")
+    # np.savetxt('ganw_vs_genw_vs_cyclew_Gan_loss.csv_2', ganw_vs_genw_vs_cyclew_gan_loss, delimiter="\t")
 
 
 

@@ -23,9 +23,9 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
         if (input_type == "RGB"):
             up_sampling   = 2
-            down_sampling = 3
+            down_sampling = 2
         else:
-            up_sampling   = 3
+            up_sampling   = 2
             down_sampling = 2
 
 

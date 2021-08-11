@@ -10,6 +10,7 @@ import pathlib
 from torch.utils.data import Dataset
 from PIL import Image
 import torchvision.transforms as transforms
+from torchvision.utils import save_image
 
 class ImageDataset(Dataset):
     def __init__(self, TIR_transforms_=None, RGB_transforms_=None, unaligned=False, mode='train'):
@@ -45,18 +46,28 @@ class ImageDataset(Dataset):
         # self.files_RGB = sorted(glob.glob(os.path.join(root, '%s/RGB' % mode) + '/*.*'))
 
     def __getitem__(self, index):
+        root = pathlib.Path(__file__).parent.parent.absolute()
         # item_TIR = self.transform(Image.open(self.files_TIR[index % len(self.files_TIR)]).convert('RGB'))
         TIR_file = self.files_TIR[index % len(self.files_TIR)]
         RGB_file = self.files_RGB[index % len(self.files_RGB)]
+
         item_TIR = self.TIR_transform(Image.open(TIR_file).convert('L'))
-        item_RGB = self.RGB_transform(Image.open(RGB_file).convert('RGB'))
 
-        if self.mode == 'test':
-            output = os.path.basename(os.path.dirname(os.path.dirname(RGB_file))) + '.' +  os.path.basename(RGB_file)
-            return {'TIR': item_TIR, 'RGB': item_RGB, 'output': str(output)}
+        Im_RGB = Image.open(RGB_file).convert('RGB').crop((33, 113, 993, 1393))
+        Im_RGB = Im_RGB.resize((544, 720))
+        item_RGB = self.RGB_transform(Im_RGB)
 
-        else:
-            return {'TIR': item_TIR, 'RGB': item_RGB}
+
+
+        output = os.path.basename(os.path.dirname(os.path.dirname(RGB_file))) + '.' + os.path.basename(RGB_file)
+        return {'TIR': item_TIR, 'RGB': item_RGB, 'output': str(output)}
+
+        # if self.mode == 'test':
+        #     output = os.path.basename(os.path.dirname(os.path.dirname(RGB_file))) + '.' +  os.path.basename(RGB_file)
+        #     return {'TIR': item_TIR, 'RGB': item_RGB, 'output': str(output)}
+        #
+        # else:
+        #     return {'TIR': item_TIR, 'RGB': item_RGB}
 
     def __len__(self):
         return max(len(self.files_TIR), len(self.files_RGB))
