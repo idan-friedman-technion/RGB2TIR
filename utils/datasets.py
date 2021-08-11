@@ -54,7 +54,11 @@ class ImageDataset(Dataset):
         item_TIR = self.TIR_transform(Image.open(TIR_file).convert('L'))
 
         Im_RGB = Image.open(RGB_file).convert('RGB').crop((33, 113, 993, 1393))
-        Im_RGB = Im_RGB.resize((544, 720))
+        if self.mode == "train":
+            Im_RGB = Im_RGB.resize((544, 720))
+        else:
+            Im_RGB = Im_RGB.resize((480, 640))
+
         item_RGB = self.RGB_transform(Im_RGB)
 
 

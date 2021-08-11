@@ -311,9 +311,9 @@ class Full_net_obj():
             shutil.rmtree(os.path.join(main_dir, f"RGB2TIR/output/{TIRtoRGB_dir}"))
         os.makedirs(os.path.join(main_dir, f"RGB2TIR/output/{TIRtoRGB_dir}"))
 
-        Gan_loss = []
+        Gan_loss      = []
+        Vgg_loss      = []
         Generate_loss = []
-        Vgg_loss = []
 
         # print('#########################################')
         #print('test')
@@ -321,39 +321,44 @@ class Full_net_obj():
         print(f"Starting test. {len(dataloader)} files to test")
 
         for i, batch in enumerate(dataloader):
-            if i % 5 != 0:
+            if i % 10 != 0:
                 continue
             # Set model input
-            item_RGB = batch['RGB'][:, :, 113:1393, 33:993]
+            item_RGB = batch['RGB']
 
-            real_TIR = Variable(self.input_TIR.copy_(batch['TIR'][0, :, :, ]))
-            real_RGB = Variable(self.input_RGB.copy_(item_RGB[0, :, :, :]))
+            for i in [0, 1]:
+                for j in [0, 1]:
+                    Q_TIR = batch['TIR'][0, :, i * 320:(i + 1) * 320, j * 240:(j + 1) * 240]
+                    Q_RGB = item_RGB[0, :, i * 320:(i + 1) * 320, j * 240:(j + 1) * 240]
+                    real_TIR = Variable(self.input_TIR.copy_(Q_TIR[:, :, :]))
+                    real_RGB = Variable(self.input_RGB.copy_(Q_RGB[:, :, :]))
 
-            # Generate output
-            # fake_RGB = netG_TIR_2_RGB(real_TIR)
-            fake_RGB = self.netG_TIR_2_RGB(real_TIR)
-            fake_TIR = self.netG_RGB_2_TIR(real_RGB)
 
-            # Check empirical results
-            pred_fake = self.netD_RGB(fake_RGB)
-            loss_GAN_TIR_2_RGB = self.criterion_MSE(pred_fake[0, :], self.target_real)
-            Gan_loss.append(loss_GAN_TIR_2_RGB.item())
+                    # Generate output
+                    # fake_RGB = netG_TIR_2_RGB(real_TIR)
+                    fake_RGB = self.netG_TIR_2_RGB(real_TIR)
+                    fake_TIR = self.netG_RGB_2_TIR(real_RGB)
 
-            loss_RGB_Generate = self.criterion_L1(fake_RGB, real_RGB)
-            Generate_loss.append(loss_RGB_Generate.item())
+                    # Check empirical results
+                    pred_fake = self.netD_RGB(fake_RGB)
+                    loss_GAN_TIR_2_RGB = self.criterion_MSE(pred_fake[0, :], self.target_real)
+                    Gan_loss.append(loss_GAN_TIR_2_RGB.item())
 
-            loss_vgg_RGB = self.vgg19_criterion(fake_RGB, real_RGB)
-            Vgg_loss.append(loss_vgg_RGB.item())
+                    loss_RGB_Generate = self.criterion_L1(fake_RGB, real_RGB)
+                    Generate_loss.append(loss_RGB_Generate.item())
 
-            fake_RGB = 0.5 * (fake_RGB + 1.0)
-            fake_TIR = 0.5 * (fake_TIR + 1.0)
+                    loss_vgg_RGB = self.vgg19_criterion(fake_RGB, real_RGB)
+                    Vgg_loss.append(loss_vgg_RGB.item())
 
-            # Save image files
-            # save_image(fake_TIR[0], os.path.join(main_dir, f'RGB2TIR/output/RGBtoTIR/%04d.png') % (i+1))
-            # save_image(fake_RGB[0], os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB/%04d.png') % (i+1))
+                    fake_RGB = 0.5 * (fake_RGB + 1.0)
+                    fake_TIR = 0.5 * (fake_TIR + 1.0)
 
-            save_image(fake_TIR[0], os.path.join(main_dir, f"RGB2TIR/output/{RGBtoTIR_dir}/{batch['output'][0]}"))
-            save_image(fake_RGB[0], os.path.join(main_dir, f"RGB2TIR/output/{TIRtoRGB_dir}/{batch['output'][0]}"))
+                    # Save image files
+                    # save_image(fake_TIR[0], os.path.join(main_dir, f'RGB2TIR/output/RGBtoTIR/%04d.png') % (i+1))
+                    # save_image(fake_RGB[0], os.path.join(main_dir, 'RGB2TIR/output/TIRtoRGB/%04d.png') % (i+1))
+
+                    save_image(fake_TIR[0], os.path.join(main_dir, f"RGB2TIR/output/{RGBtoTIR_dir}/{batch['output'][0]}"))
+                    save_image(fake_RGB[0], os.path.join(main_dir, f"RGB2TIR/output/{TIRtoRGB_dir}/{batch['output'][0]}"))
 
         print('Test is finished')
         return statistics.mean(Vgg_loss), statistics.mean(Generate_loss), statistics.mean(Gan_loss)
@@ -405,17 +410,17 @@ if __name__ == '__main__':
     TIR_2_RGB_net.train(pre_train=True, gan_w=gan_w, generate_w=generate_w, cycle_w=cycle_w, vgg_w=vgg_w)
 
     Vgg = []
-    Generate = []
     Gan = []
+    Generate = []
     for i in range(12):
         print(f"Starting loop number {i+1}")
         TIR_2_RGB_net.train(pre_train=False, gan_w=gan_w, generate_w=generate_w, cycle_w=cycle_w, vgg_w=vgg_w)
 
-        Vgg_l, Generate_l, Gan_l = TIR_2_RGB_net.test(TIRtoRGB_dir=f"new_e_{i}_TIR_2_RGB",
-                                                    RGBtoTIR_dir=f"new_e_{i}_RGB_2_TIR")
+        Vgg_l, Generate_l, Gan_l = TIR_2_RGB_net.test(TIRtoRGB_dir=f"a1_q_{i}_TIR_2_RGB",
+                                                    RGBtoTIR_dir=f"a1_q_{i}_RGB_2_TIR")
         Vgg.append(Vgg_l)
-        Generate.append(Generate_l)
         Gan.append(Gan_l)
+        Generate.append(Generate_l)
 
     print(f"\nVGG Loss -\n{Vgg}")
     print(f"\nGenerate Loss -\n{Generate}")
